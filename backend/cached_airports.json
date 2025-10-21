@@ -1,0 +1,602 @@
+{
+  "AAA": {
+    "name": "Anaa",
+    "lat": "-17.05",
+    "lng": "-145.41667",
+    "country": "French Polynesia"
+  },
+  "AAB": {
+    "name": "Arrabury",
+    "lat": "-26.7",
+    "lng": "141.04167",
+    "country": "Australia"
+  },
+  "AAC": {
+    "name": "El Arish International Airport",
+    "lat": "31.133333",
+    "lng": "33.75",
+    "country": "Egypt"
+  },
+  "AAE": {
+    "name": "Les Salines",
+    "lat": "36.821392",
+    "lng": "7.811857",
+    "country": null
+  },
+  "AAF": {
+    "name": "Apalachicola Regional",
+    "lat": "29.733334",
+    "lng": "-84.98333",
+    "country": "United States"
+  },
+  "AAG": {
+    "name": "Arapoti",
+    "lat": "-24.103611",
+    "lng": "-49.79",
+    "country": "Brazil"
+  },
+  "AAH": {
+    "name": "Aachen/Merzbruck",
+    "lat": "50.75",
+    "lng": "6.133333",
+    "country": "Germany"
+  },
+  "AAI": {
+    "name": "Arraias",
+    "lat": "-12.916667",
+    "lng": "-46.933334",
+    "country": "Brazil"
+  },
+  "AAK": {
+    "name": "Aranuka",
+    "lat": "0.166667",
+    "lng": "173.58333",
+    "country": "Kiribati"
+  },
+  "AAL": {
+    "name": "Aalborg",
+    "lat": "57.08655",
+    "lng": "9.872241",
+    "country": "Denmark"
+  },
+  "AAM": {
+    "name": "Mala Mala",
+    "lat": "-24.8",
+    "lng": "31.533333",
+    "country": "South Africa"
+  },
+  "AAN": {
+    "name": "Al Ain",
+    "lat": "24.260231",
+    "lng": "55.616627",
+    "country": "United Arab Emirates"
+  },
+  "AAQ": {
+    "name": "Anapa",
+    "lat": "44.9",
+    "lng": "37.316666",
+    "country": "Russia"
+  },
+  "AAR": {
+    "name": "Aarhus Airport",
+    "lat": "56.30823",
+    "lng": "10.626351",
+    "country": "Denmark"
+  },
+  "AAT": {
+    "name": "Altay",
+    "lat": "47.750362",
+    "lng": "88.08444",
+    "country": "China"
+  },
+  "AAX": {
+    "name": "Araxa",
+    "lat": "-19.568056",
+    "lng": "-46.92917",
+    "country": "Brazil"
+  },
+  "AAY": {
+    "name": "Al Ghaydah",
+    "lat": "16.19596",
+    "lng": "52.173256",
+    "country": "Yemen"
+  },
+  "AAZ": {
+    "name": "Quetzaltenango",
+    "lat": "14.87",
+    "lng": "-91.5",
+    "country": "Guatemala"
+  },
+  "ABA": {
+    "name": "Abakan",
+    "lat": "53.716667",
+    "lng": "91.5",
+    "country": "Russia"
+  },
+  "ABB": {
+    "name": "Asaba International",
+    "lat": "6.203333",
+    "lng": "6.65888",
+    "country": "Nigeria"
+  },
+  "ABC": {
+    "name": "Los Llanos",
+    "lat": "38.948334",
+    "lng": "-1.863333",
+    "country": "Spain"
+  },
+  "ABD": {
+    "name": "Abadan",
+    "lat": "30.363905",
+    "lng": "48.226597",
+    "country": "Iran"
+  },
+  "ABE": {
+    "name": "Lehigh Valley International",
+    "lat": "40.651573",
+    "lng": "-75.434364",
+    "country": "United States"
+  },
+  "ABH": {
+    "name": "Alpha",
+    "lat": "-23.65",
+    "lng": "146.63333",
+    "country": "Australia"
+  },
+  "ABI": {
+    "name": "Municipal",
+    "lat": "32.409443",
+    "lng": "-99.679726",
+    "country": "United States"
+  },
+  "ABJ": {
+    "name": "Felix Houphouet Boigny",
+    "lat": "5.254879",
+    "lng": "-3.933015",
+    "country": null
+  },
+  "ABK": {
+    "name": "Kabri Dar",
+    "lat": "6.733889",
+    "lng": "44.26611",
+    "country": "Ethiopia"
+  },
+  "ABL": {
+    "name": "Ambler",
+    "lat": "67.0875",
+    "lng": "-157.84584",
+    "country": "United States"
+  },
+  "ABM": {
+    "name": "Bamaga Injinoo",
+    "lat": "-10.942619",
+    "lng": "142.45033",
+    "country": "Australia"
+  },
+  "ABO": {
+    "name": "Aboisso",
+    "lat": "5.433333",
+    "lng": "-3.216667",
+    "country": null
+  },
+  "ABQ": {
+    "name": "Albuquerque International",
+    "lat": "35.049625",
+    "lng": "-106.617195",
+    "country": "United States"
+  },
+  "ABR": {
+    "name": "Municipal",
+    "lat": "45.4525",
+    "lng": "-98.42611",
+    "country": "United States"
+  },
+  "ABS": {
+    "name": "Abu Simbel",
+    "lat": "22.367567",
+    "lng": "31.609774",
+    "country": "Egypt"
+  },
+  "ABT": {
+    "name": "Al-Aqiq",
+    "lat": "20.29401",
+    "lng": "41.64002",
+    "country": "Saudi Arabia"
+  },
+  "ABU": {
+    "name": "Atambua",
+    "lat": "-9.133333",
+    "lng": "124.88333",
+    "country": "Indonesia"
+  },
+  "ABV": {
+    "name": "Nnamdi Azikiwe International Airport",
+    "lat": "9.004614",
+    "lng": "7.270447",
+    "country": "Nigeria"
+  },
+  "ABX": {
+    "name": "Albury",
+    "lat": "-36.069626",
+    "lng": "146.95453",
+    "country": "Australia"
+  },
+  "ABY": {
+    "name": "Dougherty County",
+    "lat": "31.532223",
+    "lng": "-84.19611",
+    "country": "United States"
+  },
+  "ABZ": {
+    "name": "Dyce",
+    "lat": "57.200253",
+    "lng": "-2.204186",
+    "country": "United Kingdom"
+  },
+  "ACA": {
+    "name": "General Juan N. Alvarez International",
+    "lat": "16.762403",
+    "lng": "-99.75459",
+    "country": "Mexico"
+  },
+  "ACB": {
+    "name": "Antrim County",
+    "lat": "44.983334",
+    "lng": "-85.21667",
+    "country": "United States"
+  },
+  "ACC": {
+    "name": "Kotoka",
+    "lat": "5.60737",
+    "lng": "-0.171769",
+    "country": "Ghana"
+  },
+  "ACD": {
+    "name": "Acandi",
+    "lat": "8.516667",
+    "lng": "-77.3",
+    "country": "Colombia"
+  },
+  "ACE": {
+    "name": "Lanzarote",
+    "lat": "28.950668",
+    "lng": "-13.609059",
+    "country": "Spain"
+  },
+  "ACH": {
+    "name": "Altenrhein",
+    "lat": "47.483334",
+    "lng": "9.566667",
+    "country": "Switzerland"
+  },
+  "ACI": {
+    "name": "The Blaye",
+    "lat": "49.709347",
+    "lng": "-2.215369",
+    "country": "Guernsey"
+  },
+  "ACJ": {
+    "name": "Anuradhapura",
+    "lat": "8.35",
+    "lng": "80.38333",
+    "country": "Sri Lanka"
+  },
+  "ACK": {
+    "name": "Nantucket Memorial",
+    "lat": "41.256668",
+    "lng": "-70.05972",
+    "country": "United States"
+  },
+  "ACN": {
+    "name": "Ciudad Acu\u00f1a International Airport",
+    "lat": "29.3",
+    "lng": "-100.916664",
+    "country": "Mexico"
+  },
+  "ACP": {
+    "name": "Sahand",
+    "lat": "37.347244",
+    "lng": "46.145115",
+    "country": "Iran"
+  },
+  "ACR": {
+    "name": "Araracuara",
+    "lat": "-0.383333",
+    "lng": "-72.3",
+    "country": "Colombia"
+  },
+  "ACS": {
+    "name": "Achinsk",
+    "lat": "56.266666",
+    "lng": "90.566666",
+    "country": "Russia"
+  },
+  "ACT": {
+    "name": "Municipal",
+    "lat": "31.609133",
+    "lng": "-97.22321",
+    "country": "United States"
+  },
+  "ACV": {
+    "name": "Arcata",
+    "lat": "40.970913",
+    "lng": "-124.106926",
+    "country": "United States"
+  },
+  "ACY": {
+    "name": "Atlantic City International",
+    "lat": "39.450703",
+    "lng": "-74.572235",
+    "country": "United States"
+  },
+  "ACZ": {
+    "name": "Zabol Airport",
+    "lat": "31.087694",
+    "lng": "61.542244",
+    "country": "Iran"
+  },
+  "ADA": {
+    "name": "Adana",
+    "lat": "36.98503",
+    "lng": "35.29736",
+    "country": "Turkey"
+  },
+  "ADB": {
+    "name": "Adnan Menderes Airport",
+    "lat": "38.294403",
+    "lng": "27.147594",
+    "country": "Turkey"
+  },
+  "ADD": {
+    "name": "Bole International",
+    "lat": "8.983759",
+    "lng": "38.7959",
+    "country": "Ethiopia"
+  },
+  "ADE": {
+    "name": "Aden International Airport",
+    "lat": "12.826116",
+    "lng": "45.037537",
+    "country": "Yemen"
+  },
+  "ADF": {
+    "name": "Adiyaman",
+    "lat": "37.75",
+    "lng": "38.266666",
+    "country": "Turkey"
+  },
+  "ADG": {
+    "name": "Lenawee County",
+    "lat": "41.9",
+    "lng": "-84.03333",
+    "country": "United States"
+  },
+  "ADH": {
+    "name": "Aldan",
+    "lat": "58.6",
+    "lng": "125.4",
+    "country": "Russia"
+  },
+  "ADI": {
+    "name": "Arandis",
+    "lat": "-22.4",
+    "lng": "15",
+    "country": "Namibia"
+  },
+  "ADJ": {
+    "name": "Marka International Airport",
+    "lat": "31.97533",
+    "lng": "35.98277",
+    "country": "Jordan"
+  },
+  "ADK": {
+    "name": "Adak Island Ns",
+    "lat": "51.88278",
+    "lng": "-176.64473",
+    "country": "United States"
+  },
+  "ADL": {
+    "name": "Adelaide International Airport",
+    "lat": "-34.938175",
+    "lng": "138.53735",
+    "country": "Australia"
+  },
+  "ADM": {
+    "name": "Ardmore Municipal Airport",
+    "lat": "34.303055",
+    "lng": "-97.01945",
+    "country": "United States"
+  },
+  "ADO": {
+    "name": "Andamooka",
+    "lat": "-31.016666",
+    "lng": "137.15",
+    "country": "Australia"
+  },
+  "ADQ": {
+    "name": "Kodiak Airport",
+    "lat": "57.755276",
+    "lng": "-152.51297",
+    "country": "United States"
+  },
+  "ADR": {
+    "name": "Andrews",
+    "lat": "33.45",
+    "lng": "-79.566666",
+    "country": "United States"
+  },
+  "ADS": {
+    "name": "Addison Airport",
+    "lat": "32.783333",
+    "lng": "-97.3",
+    "country": "United States"
+  },
+  "ADT": {
+    "name": "Ada Municipal",
+    "lat": "34.8",
+    "lng": "-96.666664",
+    "country": "United States"
+  },
+  "ADU": {
+    "name": "Ardabil",
+    "lat": "38.323826",
+    "lng": "48.42125",
+    "country": "Iran"
+  },
+  "ADX": {
+    "name": "Leuchars",
+    "lat": "56.36667",
+    "lng": "-2.866667",
+    "country": "United Kingdom"
+  },
+  "ADY": {
+    "name": "Alldays",
+    "lat": "-22.666668",
+    "lng": "29.05",
+    "country": "South Africa"
+  },
+  "ADZ": {
+    "name": "San Andres Island",
+    "lat": "12.586047",
+    "lng": "-81.70221",
+    "country": "Colombia"
+  },
+  "AEA": {
+    "name": "Abemama Atoll",
+    "lat": "0.483333",
+    "lng": "173.85",
+    "country": "Kiribati"
+  },
+  "AEG": {
+    "name": "Aek Godang",
+    "lat": "1.399722",
+    "lng": "99.416664",
+    "country": "Indonesia"
+  },
+  "AEH": {
+    "name": "Ab\u00e9ch\u00e9",
+    "lat": "13.851389",
+    "lng": "20.850834",
+    "country": null
+  },
+  "AEL": {
+    "name": "Albert Lea",
+    "lat": "43.65",
+    "lng": "-93.36667",
+    "country": "United States"
+  },
+  "AEO": {
+    "name": "Aioun El Atrouss",
+    "lat": "16.709167",
+    "lng": "-9.635556",
+    "country": "Mauritania"
+  },
+  "AEP": {
+    "name": "Aeroparque Jorge Newbery",
+    "lat": "-34.55622",
+    "lng": "-58.41667",
+    "country": "Argentina"
+  },
+  "AER": {
+    "name": "Sochi/Adler International Airport",
+    "lat": "43.44884",
+    "lng": "39.941105",
+    "country": "Russia"
+  },
+  "AES": {
+    "name": "Vigra",
+    "lat": "62.559643",
+    "lng": "6.116605",
+    "country": "Norway"
+  },
+  "AET": {
+    "name": "Allakaket",
+    "lat": "66.56167",
+    "lng": "-152.65834",
+    "country": "United States"
+  },
+  "AEU": {
+    "name": "Abu Musa",
+    "lat": "25.8875",
+    "lng": "55.041668",
+    "country": "Iran"
+  },
+  "AEX": {
+    "name": "Alexandria International",
+    "lat": "31.321268",
+    "lng": "-92.53958",
+    "country": "United States"
+  },
+  "AEY": {
+    "name": "Akureyri",
+    "lat": "65.654564",
+    "lng": "-18.075068",
+    "country": "Iceland"
+  },
+  "AFA": {
+    "name": "San Rafael",
+    "lat": "-34.58917",
+    "lng": "-68.40056",
+    "country": "Argentina"
+  },
+  "AFD": {
+    "name": "Port Alfred",
+    "lat": "-33.583332",
+    "lng": "26.883333",
+    "country": "South Africa"
+  },
+  "AFF": {
+    "name": "USAF Academy Airstrip",
+    "lat": "38.833332",
+    "lng": "-104.7",
+    "country": "United States"
+  },
+  "AFI": {
+    "name": "Amalfi",
+    "lat": "6.916667",
+    "lng": "-75.066666",
+    "country": "Colombia"
+  },
+  "AFL": {
+    "name": "Alta Floresta",
+    "lat": "-9.872456",
+    "lng": "-56.104767",
+    "country": "Brazil"
+  },
+  "AFN": {
+    "name": "Municipal",
+    "lat": "42.833332",
+    "lng": "-72.066666",
+    "country": "United States"
+  },
+  "AFO": {
+    "name": "Municipal",
+    "lat": "42.733334",
+    "lng": "-110.933334",
+    "country": "United States"
+  },
+  "AFS": {
+    "name": "Zarafshan",
+    "lat": "41.61361",
+    "lng": "64.233055",
+    "country": "Uzbekistan"
+  },
+  "AFT": {
+    "name": "Afutara Aerodrome",
+    "lat": "-9.2",
+    "lng": "160.85",
+    "country": "Solomon Islands"
+  },
+  "AFW": {
+    "name": "Fort Worth Alliance",
+    "lat": "32.986668",
+    "lng": "-97.316666",
+    "country": "United States"
+  },
+  "AFY": {
+    "name": "Afyon",
+    "lat": "38.733334",
+    "lng": "30.6",
+    "country": "Turkey"
+  }
+}
