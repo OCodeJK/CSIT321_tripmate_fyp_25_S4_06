@@ -6,11 +6,11 @@
  
  ## Start Backend:
  - change directory to the working directory:
- - >cd backend
+ - cd backend
  - then python app.py
 
  ## Start Frontend:
  - change directory to the working directory:
- - >cd frontend
- - >cd tripmate_frontend 
+ - cd frontend
+ - cd tripmate_frontend 
  - then >npm start
