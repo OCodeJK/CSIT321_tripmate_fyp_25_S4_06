@@ -1,0 +1,10 @@
+flask
+flask-cors
+mysql-connector-python
+openai
+pillow
+moviepy
+werkzeug
+bcrypt
+python-dotenv
+pyjwt
