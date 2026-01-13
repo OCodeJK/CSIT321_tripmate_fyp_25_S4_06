@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import Footer from "./Footer";
 
 // Custom hook for scroll animations
 function useScrollAnimation() {
@@ -552,30 +553,7 @@ export default function HomePage({ onGetStarted, onLogin }) {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer style={{
-        padding: "40px 24px",
-        background: "rgba(79, 70, 229, 0.05)",
-        color: "#475569",
-        textAlign: "center",
-        borderTop: "1px solid rgba(226, 232, 240, 0.5)"
-      }}>
-        <div style={{ 
-          fontSize: "20px", 
-          fontWeight: "800", 
-          marginBottom: "16px", 
-          color: "#4f46e5",
-          letterSpacing: "-0.02em"
-        }}>
-          TripMate
-        </div>
-        <p style={{ fontSize: "15px", marginBottom: "24px", color: "#64748b" }}>
-          Your all-in-one travel planning companion
-        </p>
-        <p style={{ fontSize: "13px", color: "#94a3b8" }}>
-          © 2024 TripMate. All rights reserved.
-        </p>
-      </footer>
+      <Footer />
     </div>
   );
 }

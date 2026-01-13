@@ -164,6 +164,24 @@ def create_trip():
     cur = conn.cursor()
 
     try:
+        # Check monthly trip limit for free users (2 trips per month)
+        if not user.get("is_premium"):
+            # Get current month start
+            now = datetime.now()
+            month_start = datetime(now.year, now.month, 1)
+            
+            # Count trips created this month
+            cur.execute(
+                "SELECT COUNT(*) FROM trips WHERE user_id = %s AND created_at >= %s",
+                (user["user_id"], month_start)
+            )
+            trips_this_month = cur.fetchone()[0]
+            
+            if trips_this_month >= 2:
+                return jsonify({
+                    "error": "Monthly trip limit reached",
+                    "message": "Free plan allows up to 2 trips per month. Upgrade to Premium for unlimited trips."
+                }), 403
         cur.execute(
             """INSERT INTO trips (user_id, name, description, origin, destinations,
                       optimized_route, total_distance_km, route_mode, travel_preference,

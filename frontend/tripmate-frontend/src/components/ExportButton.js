@@ -12,9 +12,10 @@ export default function ExportButton({ locations, photos, routeData, token, user
     }
 
     setIsExporting(true);
-    setProgress(0);
+    setProgress(10);
 
     try {
+      setProgress(20);
       const response = await axios.post(
         "http://127.0.0.1:5000/api/export/video",
         {
@@ -25,31 +26,79 @@ export default function ExportButton({ locations, photos, routeData, token, user
         {
           headers: { Authorization: `Bearer ${token}` },
           responseType: "blob",
+          timeout: 300000, // 5 minutes timeout for video processing
           onDownloadProgress: (progressEvent) => {
-            const percentCompleted = Math.round(
-              (progressEvent.loaded * 100) / (progressEvent.total || 1)
-            );
-            setProgress(percentCompleted);
+            if (progressEvent.total) {
+              const percentCompleted = Math.round(
+                20 + (progressEvent.loaded * 80) / progressEvent.total
+              );
+              setProgress(percentCompleted);
+            } else {
+              setProgress(50); // Indeterminate progress
+            }
           }
         }
       );
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      setProgress(90);
+      
+      // Check if response is an error (check content type)
+      const contentType = response.headers['content-type'] || '';
+      if (contentType.includes('application/json')) {
+        const text = await response.data.text();
+        const error = JSON.parse(text);
+        throw new Error(error.error || "Export failed");
+      }
+      
+      // Verify it's actually a video file
+      if (!contentType.includes('video') && !contentType.includes('application/octet-stream')) {
+        const text = await response.data.text();
+        try {
+          const error = JSON.parse(text);
+          throw new Error(error.error || "Export failed");
+        } catch {
+          throw new Error("Invalid response from server");
+        }
+      }
+
+      // Create download link
+      const url = window.URL.createObjectURL(response.data);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `trip-recap-${Date.now()}.mp4`);
+      const tripName = routeData?.optimizedRoute?.[0]?.name || "trip";
+      link.setAttribute("download", `${tripName}-recap-${Date.now()}.mp4`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      alert("Video exported successfully!");
+      setProgress(100);
+      setTimeout(() => {
+        alert("Video exported successfully! Check your downloads folder.");
+      }, 500);
     } catch (error) {
       console.error("Error exporting video:", error);
-      alert("Failed to export video. Please try again.");
+      let errorMessage = "Failed to export video. ";
+      if (error.response?.data) {
+        // Try to read error message from blob
+        if (error.response.data instanceof Blob) {
+          try {
+            const text = await error.response.data.text();
+            const errorData = JSON.parse(text);
+            errorMessage += errorData.error || "";
+          } catch {
+            errorMessage += "Please try again.";
+          }
+        } else {
+          errorMessage += error.response.data.error || "Please try again.";
+        }
+      } else {
+        errorMessage += error.message || "Please try again.";
+      }
+      alert(errorMessage);
     } finally {
       setIsExporting(false);
-      setProgress(0);
+      setTimeout(() => setProgress(0), 2000);
     }
   };
 

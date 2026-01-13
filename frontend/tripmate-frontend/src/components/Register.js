@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
+import Footer from "./Footer";
 
 export default function Register({ onRegister, onSwitchToLogin, onBack }) {
   const [formData, setFormData] = useState({
@@ -386,6 +387,7 @@ export default function Register({ onRegister, onSwitchToLogin, onBack }) {
         </div>
       </div>
       </div>
+      <Footer whiteText={true} />
     </div>
   );
 }

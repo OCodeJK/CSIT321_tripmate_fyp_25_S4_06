@@ -36,7 +36,7 @@ def get_users():
 
     try:
         query = """SELECT id, username, email, full_name, is_admin, is_premium,
-                          premium_expires_at, created_at
+                          premium_expires_at, is_suspended, suspended_reason, created_at
                    FROM users WHERE 1=1"""
         params = []
 
@@ -62,7 +62,9 @@ def get_users():
                 "is_admin": row[4],
                 "is_premium": row[5],
                 "premium_expires_at": row[6].isoformat() if row[6] else None,
-                "created_at": row[7].isoformat()
+                "is_suspended": row[7] if len(row) > 7 else False,
+                "suspended_reason": row[8] if len(row) > 8 else None,
+                "created_at": row[9].isoformat() if len(row) > 9 else row[7].isoformat()
             })
 
         return jsonify({"users": users}), 200
@@ -170,16 +172,50 @@ def update_user(user_id):
             updates.append("full_name = %s")
             values.append(data["full_name"])
         if "is_admin" in data:
+            # Convert boolean to 0/1 for MySQL (handle both bool and string)
+            is_admin_bool = data["is_admin"]
+            if isinstance(is_admin_bool, str):
+                is_admin_bool = is_admin_bool.lower() in ('true', '1', 'yes')
+            is_admin_value = 1 if is_admin_bool else 0
+            
             updates.append("is_admin = %s")
-            values.append(data["is_admin"])
+            values.append(is_admin_value)
         if "is_premium" in data:
+            # Convert boolean to 0/1 for MySQL (handle both bool and string)
+            is_premium_bool = data["is_premium"]
+            if isinstance(is_premium_bool, str):
+                is_premium_bool = is_premium_bool.lower() in ('true', '1', 'yes')
+            is_premium_value = 1 if is_premium_bool else 0
+            
             updates.append("is_premium = %s")
-            if data["is_premium"]:
+            values.append(is_premium_value)
+            
+            if is_premium_bool:
                 updates.append("premium_expires_at = %s")
                 values.append(datetime.now() + timedelta(days=30))
             else:
                 updates.append("premium_expires_at = NULL")
-            values.append(data["is_premium"])
+        
+        if "is_suspended" in data:
+            # Convert boolean to 0/1 for MySQL (handle both bool and string)
+            is_suspended_bool = data["is_suspended"]
+            if isinstance(is_suspended_bool, str):
+                is_suspended_bool = is_suspended_bool.lower() in ('true', '1', 'yes')
+            is_suspended_value = 1 if is_suspended_bool else 0
+            
+            updates.append("is_suspended = %s")
+            values.append(is_suspended_value)
+            
+            if "suspended_reason" in data:
+                updates.append("suspended_reason = %s")
+                values.append(data["suspended_reason"])
+            elif is_suspended_bool:
+                # If suspending but no reason provided, set default
+                updates.append("suspended_reason = %s")
+                values.append("Account suspended by administrator.")
+            elif not is_suspended_bool:
+                # If unsuspending, clear the reason
+                updates.append("suspended_reason = NULL")
 
         if not updates:
             return jsonify({"error": "No fields to update"}), 400
@@ -242,7 +278,7 @@ def search_users():
 
     try:
         cur.execute(
-            """SELECT id, username, email, full_name, is_admin, is_premium, created_at
+            """SELECT id, username, email, full_name, is_admin, is_premium, is_suspended, suspended_reason, created_at
                FROM users WHERE LOWER(username) LIKE LOWER(%s) OR LOWER(email) LIKE LOWER(%s) OR LOWER(full_name) LIKE LOWER(%s)
                OR CAST(id AS CHAR) = %s
                ORDER BY created_at DESC""",
@@ -258,7 +294,9 @@ def search_users():
                 "full_name": row[3],
                 "is_admin": row[4],
                 "is_premium": row[5],
-                "created_at": row[6].isoformat()
+                "is_suspended": row[6] if len(row) > 6 else False,
+                "suspended_reason": row[7] if len(row) > 7 else None,
+                "created_at": row[8].isoformat() if len(row) > 8 else row[6].isoformat()
             })
 
         return jsonify({"users": users}), 200

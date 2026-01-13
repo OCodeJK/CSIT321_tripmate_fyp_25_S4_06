@@ -16,9 +16,10 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "mov", "mp3", 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# File size limits (in bytes)
-MAX_FILE_SIZE_FREE = 100 * 1024 * 1024  # 100MB
-MAX_FILE_SIZE_PREMIUM = 1024 * 1024 * 1024  # 1GB
+# File size limits per trip (in bytes)
+MAX_TRIP_STORAGE_FREE = 100 * 1024 * 1024  # 100MB per trip
+MAX_TRIP_STORAGE_PREMIUM = 1024 * 1024 * 1024  # 1GB per trip
+MAX_SINGLE_FILE_SIZE = 50 * 1024 * 1024  # 50MB max per file
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -61,9 +62,11 @@ def upload_photos():
         if trip[0] != user["user_id"]:
             return jsonify({"error": "Unauthorized"}), 403
 
-        # Check user's storage limit
-        max_size = MAX_FILE_SIZE_PREMIUM if user.get("is_premium") else MAX_FILE_SIZE_FREE
-        cur.execute("SELECT SUM(LENGTH(file_path)) FROM photos WHERE trip_id = %s", (trip_id,))
+        # Check user's storage limit per trip
+        max_trip_storage = MAX_TRIP_STORAGE_PREMIUM if user.get("is_premium") else MAX_TRIP_STORAGE_FREE
+        
+        # Calculate current storage used for this trip (sum of file_size)
+        cur.execute("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE trip_id = %s", (trip_id,))
         current_size = cur.fetchone()[0] or 0
 
         uploaded_photos = []
@@ -78,25 +81,33 @@ def upload_photos():
             file_size = file.tell()
             file.seek(0)
 
-            if file_size > max_size:
-                return jsonify({"error": f"File {file.filename} exceeds maximum size limit"}), 400
+            # Check single file size limit
+            if file_size > MAX_SINGLE_FILE_SIZE:
+                return jsonify({"error": f"File {file.filename} exceeds maximum size limit of 50MB"}), 400
 
-            if current_size + total_size + file_size > max_size:
+            # Check trip storage limit
+            if current_size + total_size + file_size > max_trip_storage:
                 if not user.get("is_premium"):
-                    return jsonify({"error": "Storage limit reached. Upgrade to premium for more space"}), 400
+                    return jsonify({
+                        "error": "Trip storage limit reached",
+                        "message": f"Free plan allows 100MB per trip. You've used {current_size / (1024*1024):.1f}MB. Upgrade to Premium for 1GB per trip."
+                    }), 400
                 else:
-                    return jsonify({"error": "Storage limit reached"}), 400
+                    return jsonify({
+                        "error": "Trip storage limit reached",
+                        "message": f"Premium plan allows 1GB per trip. You've used {current_size / (1024*1024):.1f}MB."
+                    }), 400
 
             filename = secure_filename(file.filename)
             unique_filename = f"{uuid.uuid4()}_{filename}"
             filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
             file.save(filepath)
 
-            # Save to database
+            # Save to database with file size
             cur.execute(
-                """INSERT INTO photos (trip_id, location_name, filename, file_path)
-                   VALUES (%s, %s, %s, %s)""",
-                (trip_id, location_name, filename, f"/uploads/photos/{unique_filename}")
+                """INSERT INTO photos (trip_id, location_name, filename, file_path, file_size)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (trip_id, location_name, filename, f"/uploads/photos/{unique_filename}", file_size)
             )
             photo_id = cur.lastrowid
 

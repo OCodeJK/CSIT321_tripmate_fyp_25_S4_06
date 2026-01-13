@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
+import Footer from "./Footer";
 
 export default function TripList({ token, onCreateNew }) {
   const [trips, setTrips] = useState([]);
@@ -126,7 +127,8 @@ export default function TripList({ token, onCreateNew }) {
   }
 
   return (
-    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "24px" }}>
+    <div style={{ minHeight: "calc(100vh - 100px)", display: "flex", flexDirection: "column" }}>
+      <div style={{ maxWidth: "1600px", width: "100%", margin: "0 auto", padding: "clamp(16px, 4vw, 32px)", flex: "1", display: "flex", flexDirection: "column" }}>
       <div style={{
         display: "flex",
         justifyContent: "space-between",
@@ -332,8 +334,8 @@ export default function TripList({ token, onCreateNew }) {
                 )}
                 <div style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))",
-                  gap: "32px",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))",
+                  gap: "clamp(20px, 3vw, 32px)",
                   marginBottom: showOngoing && showPast && ongoingTrips.length > 0 && pastTrips.length > 0 ? "48px" : "0"
                 }}>
                   {ongoingTrips.map((trip) => (
@@ -375,8 +377,8 @@ export default function TripList({ token, onCreateNew }) {
                 )}
                 <div style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))",
-                  gap: "32px"
+                  gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))",
+                  gap: "clamp(20px, 3vw, 32px)"
                 }}>
                   {pastTrips.map((trip) => (
                     <TripCard
@@ -423,6 +425,8 @@ export default function TripList({ token, onCreateNew }) {
           </>
         );
       })()}
+      </div>
+      <Footer />
     </div>
   );
 }
@@ -646,5 +650,5 @@ function TripCard({ trip, onCreateNew, openMenuId, setOpenMenuId, menuRefs, dupl
         </div>
       </div>
     );
-}
+  }
 

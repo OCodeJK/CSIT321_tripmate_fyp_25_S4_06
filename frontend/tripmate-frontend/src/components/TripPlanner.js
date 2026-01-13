@@ -12,6 +12,7 @@ import PhotoManager from "./PhotoManager";
 import Slideshow from "./Slideshow";
 import AIChat from "./AIChat";
 import ExportButton from "./ExportButton";
+import Footer from "./Footer";
 
 const containerStyle = {
   width: "100%",
@@ -96,6 +97,13 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
       setTravelPreference(trip.travel_preference || "auto");
       setTotalDistance(trip.total_distance_km || 0);
       setRouteMode(trip.route_mode || "DRIVING");
+      
+      // Check if trip has already ended
+      if (trip.end_date) {
+        setIsEnded(true);
+      } else {
+        setIsEnded(false);
+      }
       
       // Store initial state for comparison
       const initialData = {
@@ -318,10 +326,19 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       setIsEnded(true);
-      alert("Trip ended successfully!");
-      // Navigate back to trip history
-      if (onBack) {
-        onBack();
+      
+      // Automatically show slideshow if there are photos
+      const hasPhotos = Object.keys(photos).length > 0 && 
+        Object.values(photos).some(locationPhotos => locationPhotos.length > 0);
+      
+      if (hasPhotos) {
+        setShowSlideshow(true);
+      } else {
+        alert("Trip ended successfully!");
+        // Navigate back to trip history if no photos
+        if (onBack) {
+          onBack();
+        }
       }
     } catch (err) {
       console.error("Error ending trip:", err);
@@ -1181,34 +1198,9 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
             onPhotosUpdate={setPhotos}
             tripId={currentTripId}
             token={token}
+            photos={photos}
           />
 
-          {Object.keys(photos).length > 0 && (
-            <div style={{
-              background: "white",
-              borderRadius: "12px",
-              padding: "24px",
-              marginTop: "24px",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-              textAlign: "center"
-            }}>
-              <button
-                onClick={() => setShowSlideshow(true)}
-                style={{
-                  padding: "12px 32px",
-                  background: "#4f46e5",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                  fontWeight: "600"
-                }}
-              >
-                🎬 View Slideshow
-              </button>
-            </div>
-          )}
 
           {/* Budget Tracking Section */}
           {currentTripId && (
@@ -1449,7 +1441,7 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
             </div>
           )}
 
-          <AIChat locations={allRouteLocations} photos={photos} token={token} user={user} />
+          <AIChat locations={allRouteLocations} photos={photos} token={token} user={user} tripId={currentTripId} />
 
           <ExportButton
             locations={allRouteLocations}
@@ -1463,7 +1455,21 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
       
 
       {showSlideshow && (
-        <Slideshow photos={photos} onClose={() => setShowSlideshow(false)} />
+        <Slideshow 
+          photos={photos} 
+          onClose={() => {
+            setShowSlideshow(false);
+            if (onBack) {
+              onBack();
+            }
+          }}
+          onBackToTrip={() => {
+            setShowSlideshow(false);
+            if (onBack) {
+              onBack();
+            }
+          }}
+        />
       )}
 
       {/* Action Buttons at Bottom */}

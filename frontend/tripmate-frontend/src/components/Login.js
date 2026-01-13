@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
+import Footer from "./Footer";
 
 export default function Login({ onLogin, onSwitchToRegister, onBack }) {
   const [username, setUsername] = useState("");
@@ -22,7 +23,13 @@ export default function Login({ onLogin, onSwitchToRegister, onBack }) {
       localStorage.setItem("user", JSON.stringify(res.data.user));
       onLogin(res.data.user, res.data.token);
     } catch (err) {
-      setError(err.response?.data?.error || "Login failed. Please try again.");
+      const errorData = err.response?.data;
+      if (errorData?.reason) {
+        // Account suspended - show both error and reason
+        setError(`${errorData.error} ${errorData.reason}`);
+      } else {
+        setError(errorData?.error || "Login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -298,6 +305,7 @@ export default function Login({ onLogin, onSwitchToRegister, onBack }) {
         </div>
       </div>
       </div>
+      <Footer whiteText={true} />
     </div>
   );
 }

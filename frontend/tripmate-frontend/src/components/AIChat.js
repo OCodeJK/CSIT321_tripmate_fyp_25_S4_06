@@ -1,12 +1,31 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 
-export default function AIChat({ locations, photos, token, user }) {
+export default function AIChat({ locations, photos, token, user, tripId }) {
+  // Extract destination from locations (first is origin, rest are destinations)
+  const getDestinationMessage = () => {
+    if (!locations || locations.length === 0) {
+      return "Hi! I can answer questions about the places you've visited on your trip. What would you like to know?";
+    }
+    
+    const destinationNames = locations.length > 1 
+      ? locations.slice(1).map(loc => loc.name).filter(Boolean)
+      : locations.map(loc => loc.name).filter(Boolean);
+    
+    if (destinationNames.length > 0) {
+      const destinationsStr = destinationNames.join(" and ");
+      return `Hi! I can help you with your trip to ${destinationsStr}. What would you like to know?`;
+    }
+    
+    return "Hi! I can answer questions about the places you've visited on your trip. What would you like to know?";
+  };
+
   const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hi! I can answer questions about the places you've visited on your trip. What would you like to know?" }
+    { role: "assistant", content: getDestinationMessage() }
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [questionsUsed, setQuestionsUsed] = useState(0);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -21,25 +40,31 @@ export default function AIChat({ locations, photos, token, user }) {
     if (!input.trim() || isLoading) return;
 
     const userMessage = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
+      setMessages((prev) => [...prev, userMessage]);
+      setInput("");
+      setIsLoading(true);
 
-    try {
-      const res = await axios.post("http://127.0.0.1:5000/api/ai/chat", {
-        message: input,
-        locations: locations,
-        photos: photos
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      try {
+        const res = await axios.post("http://127.0.0.1:5000/api/ai/chat", {
+          message: input,
+          locations: locations,
+          photos: photos,
+          trip_id: tripId
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
-      setMessages((prev) => [...prev, { role: "assistant", content: res.data.response }]);
+        setMessages((prev) => [...prev, { role: "assistant", content: res.data.response }]);
+        // Increment question count for free users
+        if (!user?.is_premium) {
+          setQuestionsUsed(prev => prev + 1);
+        }
     } catch (error) {
       console.error("Error getting AI response:", error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || "Sorry, I encountered an error. Please try again.";
       setMessages((prev) => [...prev, {
         role: "assistant",
-        content: "Sorry, I encountered an error. Please try again."
+        content: errorMessage
       }]);
     } finally {
       setIsLoading(false);
@@ -57,9 +82,21 @@ export default function AIChat({ locations, photos, token, user }) {
       flexDirection: "column",
       height: "500px"
     }}>
-      <h3 style={{ marginBottom: "16px", fontSize: "18px", fontWeight: "600" }}>
-        🤖 Ask About Your Trip {!user?.is_premium && <span style={{ fontSize: "12px", color: "#f59e0b", fontWeight: "400" }}>(Premium Only)</span>}
-      </h3>
+      <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+        <h3 style={{ fontSize: "18px", fontWeight: "600", margin: 0 }}>
+          🤖 Ask About Your Trip
+        </h3>
+        {!user?.is_premium && tripId && (
+          <span style={{ fontSize: "12px", color: "#f59e0b", fontWeight: "500", background: "#fef3c7", padding: "4px 8px", borderRadius: "6px" }}>
+            Free: {questionsUsed}/5 questions used
+          </span>
+        )}
+        {user?.is_premium && (
+          <span style={{ fontSize: "12px", color: "#4f46e5", fontWeight: "500", background: "#e0e7ff", padding: "4px 8px", borderRadius: "6px" }}>
+            Premium: Unlimited
+          </span>
+        )}
+      </div>
       
       <div style={{
         flex: 1,

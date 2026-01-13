@@ -9,6 +9,20 @@ from routes.export import export_bp
 app = Flask(__name__)
 CORS(app)
 
+# Initialize AI service on startup
+try:
+    from ai_service import get_ai_service
+    print("Initializing AI service on startup...")
+    ai_service = get_ai_service()
+    if ai_service.df is not None:
+        print(f"AI service initialized successfully with {len(ai_service.df)} entries!")
+    else:
+        print("AI service initialized but knowledge base not loaded yet.")
+except Exception as e:
+    print(f"Warning: Could not initialize AI service on startup: {e}")
+    import traceback
+    traceback.print_exc()
+
 # Configure upload folder
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -23,6 +37,7 @@ from routes.premium import premium_bp
 from routes.budget import budget_bp
 from routes.notifications import notifications_bp
 from routes.reviews import reviews_bp
+from routes.website_reviews import website_reviews_bp
 
 app.register_blueprint(auth_bp, url_prefix="/api/auth")
 app.register_blueprint(trips_bp, url_prefix="/api/trips")
@@ -35,6 +50,7 @@ app.register_blueprint(premium_bp, url_prefix="/api/premium")
 app.register_blueprint(budget_bp, url_prefix="/api/budget")
 app.register_blueprint(notifications_bp, url_prefix="/api/notifications")
 app.register_blueprint(reviews_bp, url_prefix="/api/reviews")
+app.register_blueprint(website_reviews_bp, url_prefix="/api/website-reviews")
 
 # --- Haversine Distance ---
 def haversine(lat1, lon1, lat2, lon2):

@@ -3,15 +3,30 @@ import os
 import tempfile
 from PIL import Image, ImageDraw, ImageFont
 import io
+import requests
+from urllib.parse import urlparse
 
 export_bp = Blueprint("export_bp", __name__)
 
 # Try to import moviepy, but make it optional
+# MoviePy 2.x changed the import structure
 try:
-    from moviepy.editor import ImageClip, concatenate_videoclips, TextClip, CompositeVideoClip
+    # Try new import path first (MoviePy 2.x)
+    from moviepy import ImageClip, concatenate_videoclips, TextClip, CompositeVideoClip
     MOVIEPY_AVAILABLE = True
+    print("MoviePy successfully imported (direct import)")
 except ImportError:
+    try:
+        # Fallback to old import path (MoviePy 1.x)
+        from moviepy.editor import ImageClip, concatenate_videoclips, TextClip, CompositeVideoClip
+        MOVIEPY_AVAILABLE = True
+        print("MoviePy successfully imported (editor import)")
+    except ImportError as e:
+        MOVIEPY_AVAILABLE = False
+        print(f"MoviePy import failed: {e}")
+except Exception as e:
     MOVIEPY_AVAILABLE = False
+    print(f"MoviePy import error: {type(e).__name__}: {e}")
 
 @export_bp.route("/video", methods=["POST"])
 def export_video():
@@ -42,18 +57,26 @@ def export_video():
         for photo in photo_list:
             all_photos.append({
                 "url": photo.get("url", ""),
-                "location": location_name
+                "location": location_name,
+                "filename": photo.get("filename", "")
             })
 
     if not MOVIEPY_AVAILABLE:
-        # Create a simple placeholder video using PIL
-        return create_simple_video(all_photos, locations, route_data)
+        from flask import make_response
+        response = make_response(jsonify({"error": "MoviePy is not installed. Please install it to use video export."}), 500)
+        response.headers['Content-Type'] = 'application/json'
+        return response
     
     try:
         return create_moviepy_video(all_photos, locations, route_data)
     except Exception as e:
-        print(f"MoviePy error: {e}, falling back to simple video")
-        return create_simple_video(all_photos, locations, route_data)
+        print(f"MoviePy error: {e}")
+        import traceback
+        traceback.print_exc()
+        from flask import make_response
+        response = make_response(jsonify({"error": f"Failed to create video: {str(e)}"}), 500)
+        response.headers['Content-Type'] = 'application/json'
+        return response
 
 def create_simple_video(photos, locations, route_data):
     """Create a simple video using PIL (fallback)"""
@@ -110,58 +133,166 @@ def create_simple_video(photos, locations, route_data):
 def create_moviepy_video(photos, locations, route_data):
     """Create video using MoviePy"""
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "photos")
     clips = []
+    temp_files = []
     
-    for photo_info in photos[:20]:  # Limit to 20 photos
-        try:
-            photo_filename = photo_info["url"].split("/")[-1]
-            photo_path = os.path.join(BASE_DIR, "uploads", "photos", photo_filename)
-            if not os.path.exists(photo_path):
-                continue
+    try:
+        for photo_info in photos[:30]:  # Limit to 30 photos
+            try:
+                # Extract filename from URL
+                photo_url = photo_info.get("url", "")
+                if not photo_url:
+                    continue
                 
-            # Create image clip
-            clip = ImageClip(photo_path, duration=3)
-            clip = clip.resize((1920, 1080))
-            
-            # Add text overlay
-            location_name = photo_info.get("location", "Trip Photo")
-            txt_clip = TextClip(
-                location_name,
-                fontsize=60,
-                color="white",
-                font="Arial-Bold",
-                stroke_color="black",
-                stroke_width=2
-            ).set_position(("center", 50)).set_duration(3)
-            
-            # Composite
-            video = CompositeVideoClip([clip, txt_clip])
-            clips.append(video)
-        except Exception as e:
-            print(f"Error processing photo with MoviePy: {e}")
-            continue
-    
-    if not clips:
-        return jsonify({"error": "Could not process any photos"}), 500
-    
-    # Concatenate all clips
-    final_video = concatenate_videoclips(clips, method="compose")
-    
-    # Export to temporary file
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-    final_video.write_videofile(
-        temp_file.name,
-        fps=24,
-        codec="libx264",
-        audio=False,
-        verbose=False,
-        logger=None
-    )
-    
-    return send_file(
-        temp_file.name,
-        mimetype="video/mp4",
-        as_attachment=True,
-        download_name="trip-recap.mp4"
-    )
+                # Extract filename from URL path
+                # URL format: /api/photos/uploads/photos/{unique_filename}
+                # or: /uploads/photos/{unique_filename}
+                if "/uploads/photos/" in photo_url:
+                    photo_filename = photo_url.split("/uploads/photos/")[-1]
+                elif "/api/photos/uploads/photos/" in photo_url:
+                    photo_filename = photo_url.split("/api/photos/uploads/photos/")[-1]
+                else:
+                    # Fallback: try to get from filename field and search
+                    original_filename = photo_info.get("filename", "")
+                    if original_filename:
+                        # Search for file that contains the original filename
+                        for file in os.listdir(UPLOAD_FOLDER):
+                            if original_filename in file:
+                                photo_filename = file
+                                break
+                        else:
+                            continue
+                    else:
+                        continue
+                
+                photo_path = os.path.join(UPLOAD_FOLDER, photo_filename)
+                
+                if not os.path.exists(photo_path):
+                    print(f"Photo not found: {photo_path}")
+                    continue
+                
+                # Load and resize image
+                img = Image.open(photo_path)
+                # Resize to 1920x1080 maintaining aspect ratio
+                img.thumbnail((1920, 1080), Image.Resampling.LANCZOS)
+                
+                # Create a 1920x1080 canvas with black background
+                canvas = Image.new("RGB", (1920, 1080), (0, 0, 0))
+                # Center the image
+                x_offset = (1920 - img.width) // 2
+                y_offset = (1080 - img.height) // 2
+                canvas.paste(img, (x_offset, y_offset))
+                
+                # Save to temporary file for MoviePy
+                temp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+                canvas.save(temp_img.name, "JPEG", quality=95)
+                temp_files.append(temp_img.name)
+                
+                # Create image clip (3 seconds per photo)
+                clip = ImageClip(temp_img.name, duration=3)
+                
+                # Add text overlay with location name
+                location_name = photo_info.get("location", "Trip Photo")
+                try:
+                    txt_clip = TextClip(
+                        location_name,
+                        fontsize=70,
+                        color="white",
+                        font="Arial-Bold",
+                        stroke_color="black",
+                        stroke_width=3,
+                        size=(1800, None),
+                        method="caption"
+                    ).set_position(("center", 50)).set_duration(3)
+                except:
+                    # Fallback if TextClip fails
+                    txt_clip = None
+                
+                # Composite video with text overlay
+                if txt_clip:
+                    video = CompositeVideoClip([clip, txt_clip])
+                else:
+                    video = clip
+                
+                clips.append(video)
+            except Exception as e:
+                print(f"Error processing photo {photo_info.get('filename', 'unknown')}: {e}")
+                import traceback
+                traceback.print_exc()
+                continue
+        
+        if not clips:
+            from flask import make_response
+            response = make_response(jsonify({"error": "Could not process any photos"}), 500)
+            response.headers['Content-Type'] = 'application/json'
+            return response
+        
+        # Concatenate all clips
+        print(f"Creating video with {len(clips)} clips...")
+        final_video = concatenate_videoclips(clips, method="compose")
+        
+        # Export to temporary file
+        temp_video = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        temp_files.append(temp_video.name)
+        
+        print("Writing video file...")
+        # MoviePy 2.x removed verbose parameter, use logger instead
+        try:
+            # Try with logger parameter (MoviePy 2.x)
+            final_video.write_videofile(
+                temp_video.name,
+                fps=24,
+                codec="libx264",
+                audio=False,
+                logger=None,
+                preset="medium"
+            )
+        except TypeError:
+            # Fallback for older MoviePy versions that might need verbose
+            try:
+                final_video.write_videofile(
+                    temp_video.name,
+                    fps=24,
+                    codec="libx264",
+                    audio=False,
+                    verbose=False,
+                    logger=None,
+                    preset="medium"
+                )
+            except TypeError:
+                # Last resort: minimal parameters
+                final_video.write_videofile(
+                    temp_video.name,
+                    fps=24,
+                    codec="libx264",
+                    audio=False
+                )
+        
+        # Clean up temporary image files
+        for temp_file in temp_files[:-1]:  # Keep the video file
+            try:
+                os.unlink(temp_file)
+            except:
+                pass
+        
+        # Close video to free resources
+        final_video.close()
+        for clip in clips:
+            clip.close()
+        
+        return send_file(
+            temp_video.name,
+            mimetype="video/mp4",
+            as_attachment=True,
+            download_name="trip-recap.mp4"
+        )
+    except Exception as e:
+        # Clean up on error
+        for temp_file in temp_files:
+            try:
+                os.unlink(temp_file)
+            except:
+                pass
+        raise e
 

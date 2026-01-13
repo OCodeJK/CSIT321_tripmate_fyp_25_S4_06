@@ -26,3 +26,28 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Footer should be full width */
+footer {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  body {
+    zoom: 1;
+    -moz-transform: scale(1);
+  }
+
+  .user-name-text {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    zoom: 1;
+    -moz-transform: scale(1);
+  }
+}

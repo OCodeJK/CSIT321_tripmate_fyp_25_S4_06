@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
     is_admin BOOLEAN DEFAULT FALSE,
     is_premium BOOLEAN DEFAULT FALSE,
     premium_expires_at TIMESTAMP NULL,
+    is_suspended BOOLEAN DEFAULT FALSE,
+    suspended_reason TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -45,8 +47,21 @@ CREATE TABLE IF NOT EXISTS photos (
     location_name VARCHAR(200),
     filename VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
+    file_size BIGINT DEFAULT 0,
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE
+);
+
+-- AI Chat Usage table (track AI questions per trip for free users)
+CREATE TABLE IF NOT EXISTS ai_chat_usage (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    trip_id INT NOT NULL,
+    user_id INT NOT NULL,
+    question_count INT DEFAULT 0,
+    last_reset_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_trip_user (trip_id, user_id)
 );
 
 -- Reviews table
@@ -84,10 +99,24 @@ CREATE TABLE IF NOT EXISTS budget_items (
     FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE
 );
 
+-- Website reviews table (for reviewing the website itself, not trips)
+CREATE TABLE IF NOT EXISTS website_reviews (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    rating INT CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT,
+    low_rating_feedback JSON, -- Stores array of selected feedback reasons for 1-2 star ratings
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE(user_id), -- One review per user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- Create indexes for better performance
 CREATE INDEX idx_trips_user_id ON trips(user_id);
 CREATE INDEX idx_photos_trip_id ON photos(trip_id);
 CREATE INDEX idx_reviews_trip_id ON reviews(trip_id);
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_budget_items_trip_id ON budget_items(trip_id);
+CREATE INDEX idx_website_reviews_user_id ON website_reviews(user_id);
 

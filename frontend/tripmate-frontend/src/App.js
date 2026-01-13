@@ -5,12 +5,18 @@ import Register from "./components/Register";
 import TripList from "./components/TripList";
 import TripPlanner from "./components/TripPlanner";
 import DashboardHome from "./components/DashboardHome";
+import ReviewPage from "./components/ReviewPage";
+import EditProfile from "./components/EditProfile";
+import Subscription from "./components/Subscription";
+import AccountSettings from "./components/AccountSettings";
+import HelpSupport from "./components/HelpSupport";
+import AdminPanel from "./components/AdminPanel";
 import axios from "axios";
 
 function App() {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [currentView, setCurrentView] = useState("home"); // "home", "login", "register", "list", "planner"
+  const [currentView, setCurrentView] = useState("home"); // "home", "login", "register", "list", "planner", "reviews", "edit-profile", "subscription", "account-settings", "help", "admin"
   const [hoveredNav, setHoveredNav] = useState(null);
   const [selectedTripId, setSelectedTripId] = useState(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -147,13 +153,15 @@ function App() {
         marginBottom: "24px",
         display: "flex",
         justifyContent: "space-between",
-        alignItems: "center"
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "16px"
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "32px" }}>
-          <h1 style={{ fontSize: "24px", fontWeight: "700", color: "#4f46e5", margin: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+          <h1 style={{ fontSize: "clamp(20px, 4vw, 24px)", fontWeight: "700", color: "#4f46e5", margin: 0 }}>
             TripMate
           </h1>
-          <div style={{ display: "flex", gap: "32px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "clamp(16px, 3vw, 32px)", alignItems: "center", flexWrap: "wrap" }}>
             <button
               onClick={() => { setCurrentView("home"); setSelectedTripId(null); }}
               onMouseEnter={() => setHoveredNav("home")}
@@ -204,6 +212,34 @@ function App() {
                 bottom: "-4px",
                 left: "0",
                 width: hoveredNav === "list" || currentView === "list" ? "100%" : "0%",
+                height: "2px",
+                background: "#4f46e5",
+                transition: "width 0.3s ease",
+                borderRadius: "2px"
+              }} />
+            </button>
+            <button
+              onClick={() => { setCurrentView("reviews"); setSelectedTripId(null); }}
+              onMouseEnter={() => setHoveredNav("reviews")}
+              onMouseLeave={() => setHoveredNav(null)}
+              style={{
+                padding: "8px 0",
+                background: "transparent",
+                color: currentView === "reviews" ? "#1e293b" : "#64748b",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "15px",
+                fontWeight: currentView === "reviews" ? "600" : "500",
+                position: "relative",
+                transition: "color 0.2s ease"
+              }}
+            >
+              Review
+              <div style={{
+                position: "absolute",
+                bottom: "-4px",
+                left: "0",
+                width: hoveredNav === "reviews" || currentView === "reviews" ? "100%" : "0%",
                 height: "2px",
                 background: "#4f46e5",
                 transition: "width 0.3s ease",
@@ -266,7 +302,7 @@ function App() {
             )}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px", position: "relative" }} ref={profileMenuRef}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", position: "relative", flexWrap: "wrap" }} ref={profileMenuRef}>
           <button
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             style={{
@@ -311,7 +347,7 @@ function App() {
             }}>
               {(user.full_name || user.username || "").charAt(0).toUpperCase()}
             </div>
-            <span style={{ fontSize: "14px", fontWeight: "500" }}>{user.full_name || user.username}</span>
+            <span className="user-name-text" style={{ fontSize: "14px", fontWeight: "500" }}>{user.full_name || user.username}</span>
             <span style={{ fontSize: "10px", color: "#94a3b8" }}>▼</span>
           </button>
           
@@ -348,7 +384,7 @@ function App() {
               <button
                 onClick={() => {
                   setShowProfileMenu(false);
-                  alert("Edit Profile - Coming soon!");
+                  setCurrentView("edit-profile");
                 }}
                 style={{
                   width: "100%",
@@ -392,7 +428,7 @@ function App() {
               <button
                 onClick={() => {
                   setShowProfileMenu(false);
-                  alert("Subscriptions - Coming soon!");
+                  setCurrentView("subscription");
                 }}
                 style={{
                   width: "100%",
@@ -436,7 +472,7 @@ function App() {
               <button
                 onClick={() => {
                   setShowProfileMenu(false);
-                  alert("Account Settings - Coming soon!");
+                  setCurrentView("account-settings");
                 }}
                 style={{
                   width: "100%",
@@ -481,7 +517,7 @@ function App() {
                 <button
                   onClick={() => {
                     setShowProfileMenu(false);
-                    alert("Admin Panel - Coming soon!");
+                    setCurrentView("admin");
                   }}
                   style={{
                     width: "100%",
@@ -526,7 +562,7 @@ function App() {
               <button
                 onClick={() => {
                   setShowProfileMenu(false);
-                  alert("Help & Support - Coming soon!");
+                  setCurrentView("help");
                 }}
                 style={{
                   width: "100%",
@@ -630,6 +666,39 @@ function App() {
         />
       ) : currentView === "list" ? (
         <TripList token={token} onCreateNew={handleCreateNew} />
+      ) : currentView === "reviews" ? (
+        <ReviewPage token={token} user={user} />
+      ) : currentView === "edit-profile" ? (
+        <EditProfile 
+          token={token} 
+          user={user} 
+          onBack={handleBackToHome}
+          onUpdateUser={(updatedUser) => {
+            setUser(updatedUser);
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+          }}
+        />
+      ) : currentView === "subscription" ? (
+        <Subscription 
+          token={token} 
+          user={user} 
+          onBack={handleBackToHome}
+        />
+      ) : currentView === "account-settings" ? (
+        <AccountSettings 
+          token={token} 
+          user={user} 
+          onBack={handleBackToHome}
+          onLogout={handleLogout}
+        />
+      ) : currentView === "help" ? (
+        <HelpSupport onBack={handleBackToHome} />
+      ) : currentView === "admin" ? (
+        <AdminPanel 
+          token={token} 
+          user={user} 
+          onBack={handleBackToHome}
+        />
       ) : (
         <TripPlanner
           token={token}

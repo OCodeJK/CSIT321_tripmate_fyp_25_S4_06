@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import Footer from "./Footer";
 
 export default function DashboardHome({ token, user, onCreateNew, onNavigateToTrips }) {
   const [recentTrips, setRecentTrips] = useState([]);
@@ -30,7 +31,8 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
   };
 
   return (
-    <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "40px 24px", background: "#f8fafc", minHeight: "calc(100vh - 100px)" }}>
+    <div style={{ minHeight: "calc(100vh - 100px)", display: "flex", flexDirection: "column" }}>
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "clamp(24px, 5vw, 40px) clamp(16px, 4vw, 24px)", background: "#f8fafc", flex: "1", display: "flex", flexDirection: "column" }}>
       <div style={{ marginBottom: "56px" }}>
         <h1 style={{
           fontSize: "clamp(32px, 5vw, 48px)",
@@ -43,7 +45,7 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
           Welcome back, {user.full_name || user.username}! 👋
         </h1>
         <p style={{
-          fontSize: "18px",
+          fontSize: "clamp(16px, 3vw, 18px)",
           color: "#64748b",
           fontWeight: "400",
           lineHeight: "1.6"
@@ -54,14 +56,14 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
 
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-        gap: "24px",
-        marginBottom: "64px"
+        gridTemplateColumns: "repeat(3, 1fr)",
+        gap: "clamp(16px, 3vw, 24px)",
+        marginBottom: "clamp(32px, 6vw, 64px)"
       }}>
         <div style={{
           background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
           borderRadius: "20px",
-          padding: "40px",
+          padding: "clamp(24px, 5vw, 40px)",
           boxShadow: "0 10px 40px rgba(102, 126, 234, 0.25)",
           border: "none",
           color: "white",
@@ -88,7 +90,7 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
             🗺️
           </div>
           <h3 style={{
-            fontSize: "24px",
+            fontSize: "clamp(20px, 4vw, 24px)",
             fontWeight: "700",
             color: "white",
             marginBottom: "12px",
@@ -97,7 +99,7 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
             Plan Your Trip
           </h3>
           <p style={{
-            fontSize: "15px",
+            fontSize: "clamp(14px, 2.5vw, 15px)",
             color: "rgba(255, 255, 255, 0.9)",
             marginBottom: "24px",
             lineHeight: "1.6"
@@ -123,7 +125,7 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
         <div style={{
           background: "white",
           borderRadius: "20px",
-          padding: "40px",
+          padding: "clamp(24px, 5vw, 40px)",
           boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
           border: "1px solid #e2e8f0",
           transition: "all 0.3s ease",
@@ -172,7 +174,7 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
             View and manage your trip photos
           </p>
           <button
-            onClick={(e) => { e.stopPropagation(); onCreateNew(); }}
+            onClick={(e) => { e.stopPropagation(); onNavigateToTrips(); }}
             style={{
               padding: "12px 24px",
               background: "transparent",
@@ -201,7 +203,7 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
           <div style={{
             background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
             borderRadius: "20px",
-            padding: "40px",
+            padding: "clamp(24px, 5vw, 40px)",
             boxShadow: "0 10px 40px rgba(251, 191, 36, 0.25)",
             border: "none",
             color: "white",
@@ -393,6 +395,8 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
           </div>
         </div>
       )}
+      </div>
+      <Footer />
     </div>
   );
 }

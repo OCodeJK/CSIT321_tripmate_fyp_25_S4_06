@@ -8,3 +8,7 @@ werkzeug
 bcrypt
 python-dotenv
 pyjwt
+pandas
+numpy
+scikit-learn
+faiss-cpu

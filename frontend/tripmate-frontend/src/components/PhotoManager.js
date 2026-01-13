@@ -1,9 +1,16 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 
-export default function PhotoManager({ locations, onPhotosUpdate, tripId, token }) {
-  const [photos, setPhotos] = useState({});
+export default function PhotoManager({ locations, onPhotosUpdate, tripId, token, photos: photosProp }) {
+  const [photos, setPhotos] = useState(photosProp || {});
   const fileInputRef = useRef(null);
+
+  // Sync with parent photos prop when it changes
+  useEffect(() => {
+    if (photosProp) {
+      setPhotos(photosProp);
+    }
+  }, [photosProp]);
 
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files);
@@ -51,18 +58,23 @@ export default function PhotoManager({ locations, onPhotosUpdate, tripId, token 
       await axios.delete(`http://127.0.0.1:5000/api/photos/${photoId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setPhotos((prev) => ({
-        ...prev,
-        [locationName]: prev[locationName]?.filter((p) => p.id !== photoId) || [],
-      }));
-      
-      if (onPhotosUpdate) {
-        const updated = { ...photos };
-        updated[locationName] = updated[locationName]?.filter((p) => p.id !== photoId) || [];
-        onPhotosUpdate(updated);
-      }
+      setPhotos((prev) => {
+        const updated = {
+          ...prev,
+          [locationName]: prev[locationName]?.filter((p) => p.id !== photoId) || [],
+        };
+        // Remove location key if no photos left
+        if (updated[locationName] && updated[locationName].length === 0) {
+          delete updated[locationName];
+        }
+        if (onPhotosUpdate) {
+          onPhotosUpdate(updated);
+        }
+        return updated;
+      });
     } catch (error) {
       console.error("Error deleting photo:", error);
+      alert("Failed to delete photo");
     }
   };
 
