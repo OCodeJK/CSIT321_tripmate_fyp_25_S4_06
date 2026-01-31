@@ -36,13 +36,6 @@ def subscribe():
         )
         conn.commit()
 
-        # Create notification
-        cur.execute(
-            "INSERT INTO notifications (user_id, message, type) VALUES (%s, %s, %s)",
-            (user["user_id"], "Welcome to Premium! You now have access to all premium features.", "premium")
-        )
-        conn.commit()
-
         return jsonify({
             "message": "Premium subscription activated successfully",
             "premium_expires_at": premium_expires.isoformat()

@@ -44,8 +44,8 @@ def register():
     if not username or not email or not password:
         return jsonify({"error": "Username, email, and password are required"}), 400
 
-    if len(password) < 6:
-        return jsonify({"error": "Password must be at least 6 characters"}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -77,6 +77,13 @@ def register():
             (user_id,)
         )
         user = cur.fetchone()
+
+        # Create default notifications for new user
+        try:
+            from routes.notifications import create_default_notifications
+            create_default_notifications(user_id, user[5])
+        except Exception as e:
+            print(f"Error creating default notifications: {str(e)}")
 
         token = generate_token(user[0], user[1], user[4], user[5])
 
@@ -169,20 +176,29 @@ def login():
                 return jsonify({"error": "Invalid credentials"}), 401
 
             # Check if premium is still valid
+            is_premium = bool(user[6]) if len(user) > 6 else False
             try:
                 cur.execute("SELECT premium_expires_at FROM users WHERE id = %s", (user[0],))
                 premium_result = cur.fetchone()
                 premium_expires = premium_result[0] if premium_result else None
-                is_premium = bool(user[6]) if len(user) > 6 else False
                 
                 if premium_expires and datetime.now() > premium_expires:
                     # Premium expired, update user
                     cur.execute("UPDATE users SET is_premium = FALSE WHERE id = %s", (user[0],))
                     conn.commit()
                     is_premium = False
-            except Exception as premium_error:
-                print(f"Premium check error: {premium_error}")
-                is_premium = bool(user[6]) if len(user) > 6 else False
+            except Exception as e:
+                print(f"Error checking premium status: {str(e)}")
+            
+            # Ensure user has default notifications (don't block login if this fails)
+            try:
+                from routes.notifications import create_default_notifications
+                create_default_notifications(user[0], is_premium)
+            except Exception as e:
+                print(f"Warning: Could not create default notifications: {str(e)}")
+                if "Table" not in str(e) and "doesn't exist" not in str(e):
+                    import traceback
+                    traceback.print_exc()
 
             token = generate_token(user[0], user[1], user[5] if len(user) > 5 else False, is_premium)
 

@@ -2,9 +2,13 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import math, csv, heapq, itertools
 import os
+from dotenv import load_dotenv
 from routes.photos import photos_bp
 from routes.ai_chat import ai_bp
 from routes.export import export_bp
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
@@ -38,6 +42,7 @@ from routes.budget import budget_bp
 from routes.notifications import notifications_bp
 from routes.reviews import reviews_bp
 from routes.website_reviews import website_reviews_bp
+from routes.weather_traffic import weather_traffic_bp
 
 app.register_blueprint(auth_bp, url_prefix="/api/auth")
 app.register_blueprint(trips_bp, url_prefix="/api/trips")
@@ -51,6 +56,7 @@ app.register_blueprint(budget_bp, url_prefix="/api/budget")
 app.register_blueprint(notifications_bp, url_prefix="/api/notifications")
 app.register_blueprint(reviews_bp, url_prefix="/api/reviews")
 app.register_blueprint(website_reviews_bp, url_prefix="/api/website-reviews")
+app.register_blueprint(weather_traffic_bp)
 
 # --- Haversine Distance ---
 def haversine(lat1, lon1, lat2, lon2):
@@ -180,17 +186,9 @@ def plan_trip():
                         all_locations[j]["lat"], all_locations[j]["lng"]
                     )
 
-        # --- Optimize order (simple brute force for small sets) ---
-        best_route = None
-        min_distance = math.inf
-        for perm in itertools.permutations(range(1, n)):
-            route = [0] + list(perm)
-            distance = sum(dist_matrix[route[i]][route[i + 1]] for i in range(len(route) - 1))
-            if distance < min_distance:
-                min_distance = distance
-                best_route = route
-
-        optimized_route = [all_locations[i] for i in best_route]
+        # --- Keep user's order (don't optimize) ---
+        # Users want to visit destinations in the order they specified
+        optimized_route = all_locations
 
         # --- Smart routing: Compare driving vs flying for each segment ---
         final_route = []

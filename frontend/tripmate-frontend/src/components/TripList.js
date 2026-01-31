@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
-import Footer from "./Footer";
 
 export default function TripList({ token, onCreateNew }) {
   const [trips, setTrips] = useState([]);
@@ -8,14 +7,37 @@ export default function TripList({ token, onCreateNew }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [openMenuId, setOpenMenuId] = useState(null);
   const [filter, setFilter] = useState("all"); // "all", "ongoing", "past"
+  const [tripPhotos, setTripPhotos] = useState({}); // Map of trip_id to first photo
   const menuRefs = useRef({});
+  const cardRefs = useRef([]);
 
   const loadTrips = useCallback(async () => {
     try {
       const res = await axios.get("http://127.0.0.1:5000/api/trips/", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setTrips(res.data.trips);
+      const tripsData = res.data.trips;
+      setTrips(tripsData);
+      
+      // Fetch first photo for each trip
+      const photosMap = {};
+      const photoPromises = tripsData.map(async (trip) => {
+        try {
+          const photoRes = await axios.get(`http://127.0.0.1:5000/api/photos/trip/${trip.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (photoRes.data.photos && photoRes.data.photos.length > 0) {
+            // Get first photo (already ordered by uploaded_at ASC)
+            photosMap[trip.id] = photoRes.data.photos[0];
+          }
+        } catch (err) {
+          // Silently fail if photos can't be loaded for a trip
+          console.error(`Error loading photos for trip ${trip.id}:`, err);
+        }
+      });
+      
+      await Promise.all(photoPromises);
+      setTripPhotos(photosMap);
     } catch (err) {
       console.error("Error loading trips:", err);
     } finally {
@@ -27,6 +49,32 @@ export default function TripList({ token, onCreateNew }) {
     loadTrips();
   }, [loadTrips]);
 
+  // Intersection Observer for scroll reveal animations
+  useEffect(() => {
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: "0px 0px -50px 0px"
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = "1";
+          entry.target.style.transform = "translateY(0) rotateX(0deg)";
+        }
+      });
+    }, observerOptions);
+
+    cardRefs.current.forEach((ref) => {
+      if (ref) observer.observe(ref);
+    });
+
+    return () => {
+      cardRefs.current.forEach((ref) => {
+        if (ref) observer.unobserve(ref);
+      });
+    };
+  }, [trips, filter]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -53,7 +101,6 @@ export default function TripList({ token, onCreateNew }) {
       await axios.delete(`http://127.0.0.1:5000/api/trips/${tripId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      // Reload trips after deletion
       loadTrips();
       setOpenMenuId(null);
     } catch (err) {
@@ -84,7 +131,13 @@ export default function TripList({ token, onCreateNew }) {
       setOpenMenuId(null);
     } catch (err) {
       console.error("Error duplicating trip:", err);
-      alert("Failed to duplicate trip. Please try again.");
+      if (err.response?.status === 403) {
+        // Monthly trip limit reached
+        const errorMsg = err.response.data?.message || err.response.data?.error || "Monthly trip limit reached. Free plan allows up to 2 trips per month. Upgrade to Premium for unlimited trips.";
+        alert(errorMsg);
+      } else {
+        alert("Failed to duplicate trip. Please try again.");
+      }
     }
   };
 
@@ -120,398 +173,644 @@ export default function TripList({ token, onCreateNew }) {
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "50px", color: "#64748b" }}>
-        Loading trips...
+      <div style={{ 
+        textAlign: "center", 
+        padding: "50px", 
+        color: "#64748b",
+        minHeight: "60vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }}>
+        <div style={{
+          fontSize: "18px",
+          fontWeight: "500"
+        }}>
+          Loading trips...
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "calc(100vh - 100px)", display: "flex", flexDirection: "column" }}>
-      <div style={{ maxWidth: "1600px", width: "100%", margin: "0 auto", padding: "clamp(16px, 4vw, 32px)", flex: "1", display: "flex", flexDirection: "column" }}>
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: "40px"
+    <div style={{ 
+      width: "100%", 
+      display: "flex", 
+      flexDirection: "column", 
+      position: "relative", 
+      zIndex: 1, 
+      flex: "1 0 auto",
+      background: "transparent",
+      minHeight: "100vh",
+      padding: "clamp(24px, 4vw, 48px) 0"
+    }}>
+      <div style={{ 
+        maxWidth: "1600px", 
+        width: "100%", 
+        margin: "0 auto", 
+        padding: "0 clamp(16px, 4vw, 32px)", 
+        flex: "1", 
+        display: "flex", 
+        flexDirection: "column"
       }}>
-        <h1 style={{ 
-          fontSize: "28px", 
-          fontWeight: "800", 
-          color: "#0f172a",
-          letterSpacing: "-0.02em",
-          margin: 0
-        }}>
-          My Trips
-        </h1>
-        <button
-          onClick={onCreateNew}
-          style={{
-            padding: "10px 20px",
-            background: "#4f46e5",
-            color: "white",
-            border: "none",
-            borderRadius: "10px",
-            fontSize: "14px",
-            fontWeight: "600",
-            cursor: "pointer",
-            transition: "all 0.2s ease"
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#4338ca";
-            e.currentTarget.style.transform = "translateY(-1px)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "#4f46e5";
-            e.currentTarget.style.transform = "translateY(0)";
-          }}
-        >
-          + New Trip
-        </button>
-      </div>
-
-      <div style={{ marginBottom: "32px", display: "flex", gap: "10px", alignItems: "center" }}>
-        <input
-          type="text"
-          placeholder="Search trips..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-          style={{
-            flex: 1,
-            padding: "10px 16px",
-            borderRadius: "10px",
-            border: "1px solid #e2e8f0",
-            fontSize: "14px",
-            background: "white",
-            transition: "all 0.2s ease"
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = "#cbd5e1";
-            e.currentTarget.style.boxShadow = "0 0 0 3px rgba(15, 23, 42, 0.05)";
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = "#e2e8f0";
-            e.currentTarget.style.boxShadow = "none";
-          }}
-        />
-        <div style={{ display: "flex", gap: "8px" }}>
-          <button
-            onClick={() => setFilter("all")}
-            style={{
-              padding: "10px 16px",
-              background: filter === "all" ? "#4f46e5" : "white",
-              color: filter === "all" ? "white" : "#64748b",
-              border: "1px solid #e2e8f0",
-              borderRadius: "10px",
-              fontSize: "14px",
-              fontWeight: "500",
-              cursor: "pointer",
-              transition: "all 0.2s ease"
-            }}
-            onMouseEnter={(e) => {
-              if (filter !== "all") {
-                e.currentTarget.style.background = "#f8fafc";
-                e.currentTarget.style.borderColor = "#cbd5e1";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (filter !== "all") {
-                e.currentTarget.style.background = "white";
-                e.currentTarget.style.borderColor = "#e2e8f0";
-              }
-            }}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setFilter("ongoing")}
-            style={{
-              padding: "10px 16px",
-              background: filter === "ongoing" ? "#4f46e5" : "white",
-              color: filter === "ongoing" ? "white" : "#64748b",
-              border: "1px solid #e2e8f0",
-              borderRadius: "10px",
-              fontSize: "14px",
-              fontWeight: "500",
-              cursor: "pointer",
-              transition: "all 0.2s ease"
-            }}
-            onMouseEnter={(e) => {
-              if (filter !== "ongoing") {
-                e.currentTarget.style.background = "#f8fafc";
-                e.currentTarget.style.borderColor = "#cbd5e1";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (filter !== "ongoing") {
-                e.currentTarget.style.background = "white";
-                e.currentTarget.style.borderColor = "#e2e8f0";
-              }
-            }}
-          >
-            Ongoing
-          </button>
-          <button
-            onClick={() => setFilter("past")}
-            style={{
-              padding: "10px 16px",
-              background: filter === "past" ? "#4f46e5" : "white",
-              color: filter === "past" ? "white" : "#64748b",
-              border: "1px solid #e2e8f0",
-              borderRadius: "10px",
-              fontSize: "14px",
-              fontWeight: "500",
-              cursor: "pointer",
-              transition: "all 0.2s ease"
-            }}
-            onMouseEnter={(e) => {
-              if (filter !== "past") {
-                e.currentTarget.style.background = "#f8fafc";
-                e.currentTarget.style.borderColor = "#cbd5e1";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (filter !== "past") {
-                e.currentTarget.style.background = "white";
-                e.currentTarget.style.borderColor = "#e2e8f0";
-              }
-            }}
-          >
-            Past
-          </button>
-        </div>
-      </div>
-
-      {trips.length === 0 ? (
+        {/* Header Section */}
         <div style={{
-          textAlign: "center",
-          padding: "80px 20px",
-          background: "white",
-          borderRadius: "16px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "clamp(32px, 5vw, 48px)",
+          flexWrap: "wrap",
+          gap: "20px"
         }}>
-          <p style={{ fontSize: "18px", color: "#64748b", marginBottom: "24px" }}>
-            {searchQuery ? "No trips match your search" : "You haven't created any trips yet"}
-          </p>
+          <div>
+            <h1 style={{ 
+              fontSize: "clamp(32px, 5vw, 48px)", 
+              fontWeight: "800", 
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              letterSpacing: "-0.03em",
+              margin: "0 0 8px 0",
+              lineHeight: "1.1"
+            }}>
+              My Trips
+            </h1>
+            <p style={{
+              fontSize: "clamp(14px, 2vw, 16px)",
+              color: "#64748b",
+              margin: 0,
+              fontWeight: "500"
+            }}>
+              Manage and explore your travel adventures
+            </p>
+          </div>
           <button
             onClick={onCreateNew}
             style={{
-              padding: "12px 32px",
-              background: "#4f46e5",
+              padding: "14px 28px",
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
               color: "white",
               border: "none",
-              borderRadius: "8px",
-              fontSize: "16px",
+              borderRadius: "16px",
+              fontSize: "15px",
               fontWeight: "600",
-              cursor: "pointer"
+              cursor: "pointer",
+              transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+              boxShadow: "0 8px 24px rgba(102, 126, 234, 0.3)",
+              position: "relative",
+              overflow: "hidden"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-3px) scale(1.02)";
+              e.currentTarget.style.boxShadow = "0 12px 32px rgba(102, 126, 234, 0.4)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "translateY(0) scale(1)";
+              e.currentTarget.style.boxShadow = "0 8px 24px rgba(102, 126, 234, 0.3)";
             }}
           >
-            Create Your First Trip
+            <span style={{ position: "relative", zIndex: 1 }}>+ New Trip</span>
           </button>
         </div>
-      ) : (() => {
-        const ongoingTrips = trips.filter(trip => !trip.end_date);
-        const pastTrips = trips.filter(trip => trip.end_date);
-        
-        const showOngoing = filter === "all" || filter === "ongoing";
-        const showPast = filter === "all" || filter === "past";
-        
-        return (
-          <>
-            {showOngoing && ongoingTrips.length > 0 && (
-              <>
-                {filter === "all" && (
-                  <h2 style={{
-                    fontSize: "20px",
-                    fontWeight: "600",
-                    color: "#475569",
-                    marginBottom: "20px",
-                    marginTop: "0"
-                  }}>
-                    Ongoing
-                  </h2>
-                )}
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))",
-                  gap: "clamp(20px, 3vw, 32px)",
-                  marginBottom: showOngoing && showPast && ongoingTrips.length > 0 && pastTrips.length > 0 ? "48px" : "0"
-                }}>
-                  {ongoingTrips.map((trip) => (
-                    <TripCard
-                      key={trip.id}
-                      trip={trip}
-                      onCreateNew={onCreateNew}
-                      openMenuId={openMenuId}
-                      setOpenMenuId={setOpenMenuId}
-                      menuRefs={menuRefs}
-                      duplicateTrip={duplicateTrip}
-                      startTripAgain={startTripAgain}
-                      deleteTrip={deleteTrip}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-            {showPast && pastTrips.length > 0 && (
-              <>
-                {showOngoing && ongoingTrips.length > 0 && filter === "all" && (
+
+        {/* Search and Filter Section */}
+        <div style={{ 
+          marginBottom: "clamp(32px, 4vw, 48px)", 
+          display: "flex", 
+          gap: "16px", 
+          alignItems: "center",
+          flexWrap: "wrap"
+        }}>
+          <div style={{
+            flex: "1",
+            minWidth: "280px",
+            position: "relative"
+          }}>
+            <div style={{
+              position: "absolute",
+              left: "18px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              fontSize: "18px",
+              color: "#94a3b8",
+              zIndex: 1,
+              transition: "all 0.3s ease"
+            }}>
+              🔍
+            </div>
+            <input
+              type="text"
+              placeholder="Search trips..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+              style={{
+                width: "100%",
+                padding: "14px 18px 14px 48px",
+                borderRadius: "24px",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                fontSize: "15px",
+                background: "rgba(255, 255, 255, 0.7)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                boxShadow: "0 4px 16px rgba(0, 0, 0, 0.08)",
+                fontWeight: "500"
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "rgba(102, 126, 234, 0.5)";
+                e.currentTarget.style.boxShadow = "0 8px 32px rgba(102, 126, 234, 0.2), 0 0 0 4px rgba(102, 126, 234, 0.1)";
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.95)";
+                const icon = e.currentTarget.previousElementSibling;
+                if (icon) {
+                  icon.style.color = "#667eea";
+                  icon.style.transform = "translateY(-50%) scale(1.1)";
+                }
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)";
+                e.currentTarget.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.08)";
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.7)";
+                const icon = e.currentTarget.previousElementSibling;
+                if (icon) {
+                  icon.style.color = "#94a3b8";
+                  icon.style.transform = "translateY(-50%) scale(1)";
+                }
+              }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            {["all", "ongoing", "past"].map((filterType) => (
+              <button
+                key={filterType}
+                onClick={() => setFilter(filterType)}
+                style={{
+                  padding: "12px 24px",
+                  background: filter === filterType 
+                    ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+                    : "rgba(255, 255, 255, 0.7)",
+                  backdropFilter: "blur(20px)",
+                  WebkitBackdropFilter: "blur(20px)",
+                  color: filter === filterType ? "white" : "#64748b",
+                  border: filter === filterType ? "none" : "1px solid rgba(255, 255, 255, 0.3)",
+                  borderRadius: "16px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  textTransform: "capitalize",
+                  boxShadow: filter === filterType 
+                    ? "0 4px 16px rgba(102, 126, 234, 0.3)" 
+                    : "0 2px 8px rgba(0, 0, 0, 0.05)"
+                }}
+                onMouseEnter={(e) => {
+                  if (filter !== filterType) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.9)";
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.1)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (filter !== filterType) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.7)";
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.05)";
+                  }
+                }}
+              >
+                {filterType}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {trips.length === 0 ? (
+          <div style={{
+            textAlign: "center",
+            padding: "80px 20px",
+            background: "rgba(255, 255, 255, 0.7)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            borderRadius: "24px",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.5) inset",
+            border: "1px solid rgba(255, 255, 255, 0.3)"
+          }}>
+            <p style={{ fontSize: "18px", color: "#64748b", marginBottom: "24px", fontWeight: "500" }}>
+              {searchQuery ? "No trips match your search" : "You haven't created any trips yet"}
+            </p>
+            <button
+              onClick={onCreateNew}
+              style={{
+                padding: "14px 32px",
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: "16px",
+                fontSize: "16px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                boxShadow: "0 8px 24px rgba(102, 126, 234, 0.3)"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 12px 32px rgba(102, 126, 234, 0.4)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 8px 24px rgba(102, 126, 234, 0.3)";
+              }}
+            >
+              Create Your First Trip
+            </button>
+          </div>
+        ) : (() => {
+          const ongoingTrips = trips.filter(trip => !trip.end_date);
+          const pastTrips = trips.filter(trip => trip.end_date);
+          
+          const showOngoing = filter === "all" || filter === "ongoing";
+          const showPast = filter === "all" || filter === "past";
+          
+          return (
+            <>
+              {showOngoing && ongoingTrips.length > 0 && (
+                <>
+                  {filter === "all" && (
+                    <h2 style={{
+                      fontSize: "clamp(20px, 3vw, 24px)",
+                      fontWeight: "700",
+                      color: "#1e293b",
+                      marginBottom: "24px",
+                      marginTop: "0"
+                    }}>
+                      Ongoing
+                    </h2>
+                  )}
                   <div style={{
-                    height: "1px",
-                    background: "#e2e8f0",
-                    marginBottom: "32px",
-                    marginTop: "16px"
-                  }} />
-                )}
-                {filter === "all" && (
-                  <h2 style={{
-                    fontSize: "20px",
-                    fontWeight: "600",
-                    color: "#475569",
-                    marginBottom: "20px",
-                    marginTop: "0"
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+                    gap: "clamp(24px, 3vw, 32px)",
+                    marginBottom: showOngoing && showPast && ongoingTrips.length > 0 && pastTrips.length > 0 ? "56px" : "0"
                   }}>
-                    Past
-                  </h2>
-                )}
+                    {ongoingTrips.map((trip, index) => (
+                      <TripCard
+                        key={trip.id}
+                        trip={trip}
+                        firstPhoto={tripPhotos[trip.id]}
+                        onCreateNew={onCreateNew}
+                        openMenuId={openMenuId}
+                        setOpenMenuId={setOpenMenuId}
+                        menuRefs={menuRefs}
+                        duplicateTrip={duplicateTrip}
+                        startTripAgain={startTripAgain}
+                        deleteTrip={deleteTrip}
+                        index={index}
+                        cardRef={(el) => {
+                          if (el) cardRefs.current.push(el);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+              {showPast && pastTrips.length > 0 && (
+                <>
+                  {showOngoing && ongoingTrips.length > 0 && filter === "all" && (
+                    <div style={{
+                      height: "1px",
+                      background: "linear-gradient(90deg, transparent 0%, rgba(226, 232, 240, 0.5) 50%, transparent 100%)",
+                      marginBottom: "40px",
+                      marginTop: "24px"
+                    }} />
+                  )}
+                  {filter === "all" && (
+                    <h2 style={{
+                      fontSize: "clamp(20px, 3vw, 24px)",
+                      fontWeight: "700",
+                      color: "#1e293b",
+                      marginBottom: "24px",
+                      marginTop: "0"
+                    }}>
+                      Past
+                    </h2>
+                  )}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+                    gap: "clamp(24px, 3vw, 32px)"
+                  }}>
+                    {pastTrips.map((trip, index) => (
+                      <TripCard
+                        key={trip.id}
+                        trip={trip}
+                        firstPhoto={tripPhotos[trip.id]}
+                        onCreateNew={onCreateNew}
+                        openMenuId={openMenuId}
+                        setOpenMenuId={setOpenMenuId}
+                        menuRefs={menuRefs}
+                        duplicateTrip={duplicateTrip}
+                        startTripAgain={startTripAgain}
+                        deleteTrip={deleteTrip}
+                        index={ongoingTrips.length + index}
+                        cardRef={(el) => {
+                          if (el) cardRefs.current.push(el);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+              {filter === "ongoing" && ongoingTrips.length === 0 && (
                 <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))",
-                  gap: "clamp(20px, 3vw, 32px)"
+                  textAlign: "center",
+                  padding: "60px 20px",
+                  background: "rgba(255, 255, 255, 0.7)",
+                  backdropFilter: "blur(20px)",
+                  WebkitBackdropFilter: "blur(20px)",
+                  borderRadius: "24px",
+                  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.5) inset",
+                  border: "1px solid rgba(255, 255, 255, 0.3)"
                 }}>
-                  {pastTrips.map((trip) => (
-                    <TripCard
-                      key={trip.id}
-                      trip={trip}
-                      onCreateNew={onCreateNew}
-                      openMenuId={openMenuId}
-                      setOpenMenuId={setOpenMenuId}
-                      menuRefs={menuRefs}
-                      duplicateTrip={duplicateTrip}
-                      startTripAgain={startTripAgain}
-                      deleteTrip={deleteTrip}
-                    />
-                  ))}
+                  <p style={{ fontSize: "16px", color: "#64748b", fontWeight: "500" }}>
+                    No ongoing trips
+                  </p>
                 </div>
-              </>
-            )}
-            {filter === "ongoing" && ongoingTrips.length === 0 && (
-              <div style={{
-                textAlign: "center",
-                padding: "60px 20px",
-                background: "white",
-                borderRadius: "16px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
-              }}>
-                <p style={{ fontSize: "16px", color: "#64748b" }}>
-                  No ongoing trips
-                </p>
-              </div>
-            )}
-            {filter === "past" && pastTrips.length === 0 && (
-              <div style={{
-                textAlign: "center",
-                padding: "60px 20px",
-                background: "white",
-                borderRadius: "16px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
-              }}>
-                <p style={{ fontSize: "16px", color: "#64748b" }}>
-                  No past trips
-                </p>
-              </div>
-            )}
-          </>
-        );
-      })()}
+              )}
+              {filter === "past" && pastTrips.length === 0 && (
+                <div style={{
+                  textAlign: "center",
+                  padding: "60px 20px",
+                  background: "rgba(255, 255, 255, 0.7)",
+                  backdropFilter: "blur(20px)",
+                  WebkitBackdropFilter: "blur(20px)",
+                  borderRadius: "24px",
+                  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.5) inset",
+                  border: "1px solid rgba(255, 255, 255, 0.3)"
+                }}>
+                  <p style={{ fontSize: "16px", color: "#64748b", fontWeight: "500" }}>
+                    No past trips
+                  </p>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
-      <Footer />
     </div>
   );
 }
 
-function TripCard({ trip, onCreateNew, openMenuId, setOpenMenuId, menuRefs, duplicateTrip, startTripAgain, deleteTrip }) {
+function TripCard({ trip, firstPhoto, onCreateNew, openMenuId, setOpenMenuId, menuRefs, duplicateTrip, startTripAgain, deleteTrip, index, cardRef }) {
+  const [imageHover, setImageHover] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
     <div
+      ref={cardRef}
       style={{
-        background: "white",
-        borderRadius: "16px",
-        padding: "40px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-        transition: "all 0.2s ease",
+        background: "rgba(255, 255, 255, 0.7)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderRadius: "24px",
+        padding: "0",
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.5) inset",
+        transition: "all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)",
         position: "relative",
-        border: "1px solid #f1f5f9"
+        border: "1px solid rgba(255, 255, 255, 0.3)",
+        overflow: "hidden",
+        opacity: 0,
+        transform: "translateY(30px) rotateX(5deg)",
+        animation: `fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) ${index * 0.1}s forwards`,
+        cursor: "pointer"
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
-        e.currentTarget.style.borderColor = "#e2e8f0";
+        setIsHovered(true);
+        e.currentTarget.style.transform = "translateY(-12px) scale(1.03) rotateY(2deg)";
+        e.currentTarget.style.boxShadow = "0 24px 80px rgba(102, 126, 234, 0.25), 0 0 0 1px rgba(102, 126, 234, 0.2) inset, 0 0 40px rgba(102, 126, 234, 0.15)";
+        e.currentTarget.style.borderColor = "rgba(102, 126, 234, 0.4)";
+        setImageHover(true);
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)";
-        e.currentTarget.style.borderColor = "#f1f5f9";
+        setIsHovered(false);
+        e.currentTarget.style.transform = "translateY(0) scale(1) rotateY(0deg)";
+        e.currentTarget.style.boxShadow = "0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.5) inset";
+        e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
+        setImageHover(false);
       }}
     >
+      {/* Cover Image */}
       <div
-        onClick={() => onCreateNew(trip.id)}
         style={{
-          cursor: "pointer"
+          width: "100%",
+          height: "200px",
+          background: firstPhoto 
+            ? "transparent" 
+            : "linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
+          position: "relative",
+          overflow: "hidden"
         }}
+        onMouseEnter={() => setImageHover(true)}
+        onMouseLeave={() => setImageHover(false)}
       >
-        <h3 style={{
-            fontSize: "28px",
-            fontWeight: "700",
+        {firstPhoto ? (
+          <>
+            {firstPhoto.media_type === 'video' || 
+             firstPhoto.filename?.toLowerCase().endsWith('.mp4') || 
+             firstPhoto.filename?.toLowerCase().endsWith('.mov') ||
+             firstPhoto.url?.includes('.mp4') || 
+             firstPhoto.url?.includes('.mov') ? (
+              <video
+                src={`http://127.0.0.1:5000${firstPhoto.url}`}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+                  transform: imageHover ? "scale(1.1)" : "scale(1)"
+                }}
+                muted
+                playsInline
+              />
+            ) : (
+              <img
+                src={`http://127.0.0.1:5000${firstPhoto.url}`}
+                alt={trip.name}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+                  transform: imageHover ? "scale(1.1)" : "scale(1)"
+                }}
+              />
+            )}
+            {/* Overlay gradient for better text readability */}
+            <div style={{
+              position: "absolute",
+              inset: 0,
+              background: "linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.1) 100%)",
+              pointerEvents: "none"
+            }} />
+          </>
+        ) : (
+          <div style={{
+            position: "absolute",
+            inset: 0,
+            background: "linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+            transform: imageHover ? "scale(1.1)" : "scale(1)"
+          }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "rgba(255, 255, 255, 0.9)" }}>
+              <path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/>
+              <path d="M15 5.764v15"/>
+              <path d="M9 3.236v15"/>
+            </svg>
+          </div>
+        )}
+        {/* Status Badge */}
+        {trip.end_date ? (
+          <div style={{
+            position: "absolute",
+            top: "16px",
+            left: "16px",
+            padding: "6px 14px",
+            background: "rgba(100, 116, 139, 0.9)",
+            backdropFilter: "blur(10px)",
+            color: "white",
+            borderRadius: "20px",
+            fontSize: "12px",
+            fontWeight: "600",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)"
+          }}>
+            Past
+          </div>
+        ) : (
+          <div style={{
+            position: "absolute",
+            top: "16px",
+            left: "16px",
+            padding: "6px 14px",
+            background: "rgba(16, 185, 129, 0.9)",
+            backdropFilter: "blur(10px)",
+            color: "white",
+            borderRadius: "20px",
+            fontSize: "12px",
+            fontWeight: "600",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)"
+          }}>
+            Ongoing
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: "28px" }}>
+        <div
+          onClick={() => onCreateNew(trip.id)}
+          style={{
+            cursor: "pointer"
+          }}
+        >
+          <h3 style={{
+            fontSize: "clamp(24px, 3vw, 28px)",
+            fontWeight: "800",
             marginBottom: "20px",
             color: "#0f172a",
-            letterSpacing: "-0.01em"
-        }}>
-          {trip.name}
-        </h3>
+            letterSpacing: "-0.02em",
+            lineHeight: "1.2",
+            transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+            transform: isHovered ? "translateX(4px)" : "translateX(0)",
+            background: isHovered ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "transparent",
+            WebkitBackgroundClip: isHovered ? "text" : "unset",
+            WebkitTextFillColor: isHovered ? "transparent" : "#0f172a",
+            backgroundClip: isHovered ? "text" : "unset"
+          }}>
+            {trip.name}
+          </h3>
           <div style={{ 
-            fontSize: "17px",
-            color: "#64748b",
-            marginTop: "16px",
+            fontSize: "15px",
+            color: "#475569",
             lineHeight: "1.8"
           }}>
             {trip.origin && (
-              <div style={{ marginBottom: "8px" }}>
-                <span style={{ fontWeight: "600", color: "#475569", fontSize: "18px" }}>From:</span> <span style={{ fontSize: "17px" }}>{trip.origin.name || "Unknown"}</span>
+              <div style={{ 
+                marginBottom: "12px",
+                transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                transform: isHovered ? "translateX(4px)" : "translateX(0)"
+              }}>
+                <span style={{ 
+                  fontWeight: "700", 
+                  color: "#667eea", 
+                  fontSize: "13px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  transition: "all 0.4s ease"
+                }}>From</span>
+                <div style={{ 
+                  fontSize: "16px", 
+                  fontWeight: "600",
+                  color: "#1e293b",
+                  marginTop: "4px",
+                  transition: "color 0.4s ease"
+                }}>
+                  {trip.origin.name || "Unknown"}
+                </div>
               </div>
             )}
             {trip.destinations && trip.destinations.length > 0 && (
-              <div style={{ marginBottom: "8px" }}>
-                <span style={{ fontWeight: "600", color: "#475569", fontSize: "18px" }}>To:</span> <span style={{ fontSize: "17px" }}>{trip.destinations.map(d => d.name).filter(Boolean).join(", ") || "Unknown"}</span>
+              <div style={{ 
+                marginBottom: "12px",
+                transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                transform: isHovered ? "translateX(4px)" : "translateX(0)"
+              }}>
+                <span style={{ 
+                  fontWeight: "700", 
+                  color: "#764ba2", 
+                  fontSize: "13px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  transition: "all 0.4s ease"
+                }}>To</span>
+                <div style={{ 
+                  fontSize: "16px", 
+                  fontWeight: "600",
+                  color: "#1e293b",
+                  marginTop: "4px",
+                  transition: "color 0.4s ease"
+                }}>
+                  {trip.destinations.map(d => d.name).filter(Boolean).join(", ") || "Unknown"}
+                </div>
               </div>
             )}
             {trip.start_date && (
-              <div style={{ marginBottom: "8px" }}>
-                <span style={{ fontWeight: "600", color: "#475569", fontSize: "18px" }}>Start Date:</span> <span style={{ fontSize: "17px" }}>{new Date(trip.start_date).toLocaleDateString()}</span>
-              </div>
-            )}
-            {trip.end_date && (
-              <div style={{
-                display: "inline-block",
-                marginTop: "12px",
-                padding: "6px 14px",
-                background: "#f1f5f9",
-                color: "#64748b",
-                borderRadius: "8px",
-                fontSize: "14px",
-                fontWeight: "600"
-              }}>
-                ✓ Ended
+              <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid rgba(226, 232, 240, 0.5)" }}>
+                <span style={{ 
+                  fontSize: "13px",
+                  color: "#94a3b8",
+                  fontWeight: "500"
+                }}>
+                  {new Date(trip.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </span>
               </div>
             )}
           </div>
         </div>
+        
+        {/* Menu Button */}
         <div
           ref={(el) => (menuRefs.current[trip.id] = el)}
           style={{
             position: "absolute",
-            top: "20px",
-            right: "20px"
+            top: "16px",
+            right: "16px",
+            zIndex: 10
           }}
         >
           <button
@@ -520,28 +819,31 @@ function TripCard({ trip, onCreateNew, openMenuId, setOpenMenuId, menuRefs, dupl
               setOpenMenuId(openMenuId === trip.id ? null : trip.id);
             }}
             style={{
-              padding: "6px",
-              background: "transparent",
-              border: "none",
-              borderRadius: "6px",
+              padding: "8px",
+              background: "rgba(255, 255, 255, 0.9)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(255, 255, 255, 0.3)",
+              borderRadius: "12px",
               cursor: "pointer",
-              fontSize: "24px",
-              color: "#94a3b8",
+              fontSize: "20px",
+              color: "#64748b",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               width: "36px",
-              height: "28px",
-              transition: "all 0.2s ease",
-              lineHeight: "1"
+              height: "36px",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)"
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#f1f5f9";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 1)";
               e.currentTarget.style.color = "#475569";
+              e.currentTarget.style.transform = "scale(1.1)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.color = "#94a3b8";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.9)";
+              e.currentTarget.style.color = "#64748b";
+              e.currentTarget.style.transform = "scale(1)";
             }}
           >
             ⋯
@@ -550,15 +852,18 @@ function TripCard({ trip, onCreateNew, openMenuId, setOpenMenuId, menuRefs, dupl
             <div
               style={{
                 position: "absolute",
-                top: "36px",
+                top: "44px",
                 right: "0",
-                background: "white",
-                borderRadius: "12px",
-                boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-                border: "1px solid #e2e8f0",
-                minWidth: "180px",
+                background: "rgba(255, 255, 255, 0.95)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
+                borderRadius: "16px",
+                boxShadow: "0 12px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.5) inset",
+                border: "1px solid rgba(255, 255, 255, 0.3)",
+                minWidth: "200px",
                 zIndex: 1000,
-                overflow: "hidden"
+                overflow: "hidden",
+                animation: "fadeInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
               }}
             >
               <button
@@ -571,16 +876,16 @@ function TripCard({ trip, onCreateNew, openMenuId, setOpenMenuId, menuRefs, dupl
                   padding: "14px 20px",
                   background: "transparent",
                   border: "none",
-                  borderBottom: "1px solid #f1f5f9",
+                  borderBottom: "1px solid rgba(241, 245, 249, 0.5)",
                   cursor: "pointer",
-                  fontSize: "15px",
+                  fontSize: "14px",
                   color: "#475569",
                   textAlign: "left",
-                  transition: "background 0.2s ease",
+                  transition: "all 0.2s ease",
                   fontWeight: "500"
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f8fafc";
+                  e.currentTarget.style.background = "rgba(248, 250, 252, 0.8)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = "transparent";
@@ -599,16 +904,16 @@ function TripCard({ trip, onCreateNew, openMenuId, setOpenMenuId, menuRefs, dupl
                     padding: "14px 20px",
                     background: "transparent",
                     border: "none",
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid rgba(241, 245, 249, 0.5)",
                     cursor: "pointer",
-                    fontSize: "15px",
+                    fontSize: "14px",
                     color: "#16a34a",
                     textAlign: "left",
-                    transition: "background 0.2s ease",
+                    transition: "all 0.2s ease",
                     fontWeight: "500"
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "#f0fdf4";
+                    e.currentTarget.style.background = "rgba(240, 253, 244, 0.8)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = "transparent";
@@ -630,14 +935,14 @@ function TripCard({ trip, onCreateNew, openMenuId, setOpenMenuId, menuRefs, dupl
                   background: "transparent",
                   border: "none",
                   cursor: "pointer",
-                  fontSize: "15px",
+                  fontSize: "14px",
                   color: "#dc2626",
                   textAlign: "left",
-                  transition: "background 0.2s ease",
+                  transition: "all 0.2s ease",
                   fontWeight: "500"
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#fef2f2";
+                  e.currentTarget.style.background = "rgba(254, 242, 242, 0.8)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = "transparent";
@@ -649,6 +954,6 @@ function TripCard({ trip, onCreateNew, openMenuId, setOpenMenuId, menuRefs, dupl
           )}
         </div>
       </div>
-    );
-  }
-
+    </div>
+  );
+}

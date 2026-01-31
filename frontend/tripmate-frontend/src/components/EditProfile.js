@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import Footer from "./Footer";
 
 export default function EditProfile({ token, user, onBack, onUpdateUser }) {
   const [formData, setFormData] = useState({
@@ -14,10 +13,42 @@ export default function EditProfile({ token, user, onBack, onUpdateUser }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const containerRef = useRef(null);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     loadUserData();
   }, [token]);
+
+  // Scroll reveal animation
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+        }
+      },
+      { threshold: 0.05, rootMargin: "200px 0px 0px 0px" }
+    );
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+      const rect = containerRef.current.getBoundingClientRect();
+      if (rect.top < window.innerHeight + 200 && rect.bottom > -200) {
+        setVisible(true);
+      }
+    }
+    return () => observer.disconnect();
+  }, []);
+
+  // Mouse tracking for magnetic buttons
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
 
   const loadUserData = async () => {
     try {
@@ -61,8 +92,8 @@ export default function EditProfile({ token, user, onBack, onUpdateUser }) {
         setLoading(false);
         return;
       }
-      if (formData.new_password.length < 6) {
-        setError("New password must be at least 6 characters");
+      if (formData.new_password.length < 8) {
+        setError("New password must be at least 8 characters");
         setLoading(false);
         return;
       }
@@ -111,300 +142,553 @@ export default function EditProfile({ token, user, onBack, onUpdateUser }) {
   };
 
   return (
-    <div style={{
-      minHeight: "calc(100vh - 100px)",
-      display: "flex",
-      flexDirection: "column"
-    }}>
+    <>
+      <style>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
       <div style={{
-        maxWidth: "600px",
-        margin: "0 auto",
-        padding: "24px",
-        flex: "1"
+        width: "100%",
+        position: "relative",
+        zIndex: 1,
+        flex: "1 0 auto",
+        background: "transparent"
       }}>
-        <div style={{
-          background: "white",
-          borderRadius: "12px",
-          padding: "32px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
-        }}>
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "24px"
-        }}>
-          <h1 style={{
-            fontSize: "28px",
-            fontWeight: "800",
-            color: "#2d3748",
-            margin: 0,
-            letterSpacing: "-0.02em"
+        <div 
+          ref={containerRef}
+          style={{
+            maxWidth: "1440px",
+            width: "100%",
+            margin: "0 auto",
+            padding: "clamp(32px, 6vw, 64px) clamp(24px, 4vw, 48px)",
+            opacity: visible ? 1 : 0,
+            transform: visible ? "translateY(0)" : "translateY(30px)",
+            transition: "opacity 0.4s ease-out, transform 0.4s ease-out"
+          }}
+        >
+          {/* Header */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "clamp(40px, 6vw, 56px)",
+            opacity: visible ? 1 : 0,
+            transform: visible ? "translateY(0)" : "translateY(20px)",
+            transition: "opacity 0.4s ease-out 0.1s, transform 0.4s ease-out 0.1s"
           }}>
-            Edit Profile
-          </h1>
-          {onBack && (
-            <button
-              onClick={onBack}
-              style={{
-                padding: "8px 16px",
-                background: "transparent",
+            <div>
+              <h1 style={{
+                fontSize: "clamp(36px, 6vw, 48px)",
+                fontWeight: "900",
+                background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                marginBottom: "clamp(8px, 1.5vw, 12px)",
+                letterSpacing: "-0.04em",
+                lineHeight: "1.1"
+              }}>
+                Edit Profile
+              </h1>
+              <p style={{
+                fontSize: "clamp(15px, 2.5vw, 18px)",
                 color: "#64748b",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontSize: "14px",
-                fontWeight: "500"
-              }}
-            >
-              Back
-            </button>
-          )}
-        </div>
-
-        {error && (
-          <div style={{
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            borderRadius: "8px",
-            padding: "12px",
-            marginBottom: "20px",
-            color: "#dc2626"
-          }}>
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div style={{
-            background: "#f0fdf4",
-            border: "1px solid #86efac",
-            borderRadius: "8px",
-            padding: "12px",
-            marginBottom: "20px",
-            color: "#166534"
-          }}>
-            {success}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{
-              display: "block",
-              fontSize: "14px",
-              fontWeight: "600",
-              color: "#2d3748",
-              marginBottom: "8px"
-            }}>
-              Username
-            </label>
-            <input
-              type="text"
-              value={formData.username}
-              disabled
-              style={{
-                width: "100%",
-                padding: "12px",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                fontSize: "14px",
-                background: "#f8fafc",
-                color: "#64748b"
-              }}
-            />
-            <p style={{
-              fontSize: "12px",
-              color: "#94a3b8",
-              marginTop: "4px",
-              margin: 0
-            }}>
-              Username cannot be changed
-            </p>
-          </div>
-
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{
-              display: "block",
-              fontSize: "14px",
-              fontWeight: "600",
-              color: "#2d3748",
-              marginBottom: "8px"
-            }}>
-              Full Name
-            </label>
-            <input
-              type="text"
-              name="full_name"
-              value={formData.full_name}
-              onChange={handleChange}
-              style={{
-                width: "100%",
-                padding: "12px",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                fontSize: "14px"
-              }}
-            />
-          </div>
-
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{
-              display: "block",
-              fontSize: "14px",
-              fontWeight: "600",
-              color: "#2d3748",
-              marginBottom: "8px"
-            }}>
-              Email *
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              style={{
-                width: "100%",
-                padding: "12px",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                fontSize: "14px"
-              }}
-            />
-          </div>
-
-          <div style={{
-            marginTop: "32px",
-            paddingTop: "24px",
-            borderTop: "1px solid #e2e8f0"
-          }}>
-            <h3 style={{
-              fontSize: "18px",
-              fontWeight: "700",
-              color: "#2d3748",
-              marginBottom: "16px"
-            }}>
-              Change Password
-            </h3>
-            <p style={{
-              fontSize: "13px",
-              color: "#64748b",
-              marginBottom: "20px"
-            }}>
-              Leave blank if you don't want to change your password
-            </p>
-
-            <div style={{ marginBottom: "20px" }}>
-              <label style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: "600",
-                color: "#2d3748",
-                marginBottom: "8px"
+                fontWeight: "400"
               }}>
-                Current Password
-              </label>
-              <input
-                type="password"
-                name="current_password"
-                value={formData.current_password}
-                onChange={handleChange}
+                Update your account information and preferences
+              </p>
+            </div>
+            {onBack && (
+              <button
+                onClick={onBack}
+                style={{
+                  padding: "clamp(10px, 2vw, 12px) clamp(20px, 3vw, 24px)",
+                  background: "rgba(255, 255, 255, 0.7)",
+                  backdropFilter: "blur(20px)",
+                  WebkitBackdropFilter: "blur(20px)",
+                  color: "#64748b",
+                  border: "1px solid rgba(226, 232, 240, 0.5)",
+                  borderRadius: "12px",
+                  cursor: "pointer",
+                  fontSize: "clamp(14px, 2vw, 15px)",
+                  fontWeight: "600",
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.04)"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.9)";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 8px 24px rgba(0, 0, 0, 0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.7)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.04)";
+                }}
+              >
+                Back
+              </button>
+            )}
+          </div>
+
+          {/* Main Form Card - Glassmorphism */}
+          <div style={{
+            background: "rgba(255, 255, 255, 0.7)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            borderRadius: "32px",
+            padding: "clamp(40px, 6vw, 64px) clamp(32px, 5vw, 56px)",
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5) inset, 0 8px 32px rgba(0, 0, 0, 0.04)",
+            border: "1px solid rgba(255, 255, 255, 0.3)",
+            maxWidth: "800px",
+            margin: "0 auto",
+            opacity: visible ? 1 : 0,
+            transform: visible ? "scale(1)" : "scale(0.95)",
+            transition: "opacity 0.4s ease-out 0.2s, transform 0.4s ease-out 0.2s"
+          }}>
+            {error && (
+              <div style={{
+                background: "linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(239, 68, 68, 0.1) 100%)",
+                border: "1px solid rgba(220, 38, 38, 0.3)",
+                borderRadius: "16px",
+                padding: "clamp(16px, 3vw, 20px)",
+                marginBottom: "clamp(24px, 4vw, 32px)",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                animation: "fadeInUp 0.4s ease-out"
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#dc2626", flexShrink: 0 }}>
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <p style={{ color: "#dc2626", margin: 0, fontSize: "clamp(14px, 2vw, 15px)", fontWeight: "500" }}>
+                  {error}
+                </p>
+              </div>
+            )}
+
+            {success && (
+              <div style={{
+                background: "linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)",
+                border: "1px solid rgba(16, 185, 129, 0.3)",
+                borderRadius: "16px",
+                padding: "clamp(16px, 3vw, 20px)",
+                marginBottom: "clamp(24px, 4vw, 32px)",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                animation: "fadeInUp 0.4s ease-out"
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#10b981", flexShrink: 0 }}>
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <p style={{ color: "#059669", margin: 0, fontSize: "clamp(14px, 2vw, 15px)", fontWeight: "500" }}>
+                  {success}
+                </p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              {/* User Information Section */}
+              <div style={{
+                marginBottom: "clamp(40px, 6vw, 48px)",
+                opacity: visible ? 1 : 0,
+                transform: visible ? "translateY(0)" : "translateY(20px)",
+                transition: "opacity 0.4s ease-out 0.3s, transform 0.4s ease-out 0.3s"
+              }}>
+                <h2 style={{
+                  fontSize: "clamp(22px, 3.5vw, 28px)",
+                  fontWeight: "700",
+                  color: "#1e293b",
+                  marginBottom: "clamp(24px, 4vw, 32px)",
+                  letterSpacing: "-0.01em"
+                }}>
+                  User Information
+                </h2>
+
+                <div style={{ display: "grid", gap: "clamp(24px, 4vw, 32px)" }}>
+                  {/* Username */}
+                  <div>
+                    <label style={{
+                      display: "block",
+                      fontSize: "clamp(15px, 2vw, 16px)",
+                      fontWeight: "600",
+                      color: "#1e293b",
+                      marginBottom: "clamp(10px, 1.5vw, 12px)",
+                      letterSpacing: "-0.01em"
+                    }}>
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.username}
+                      disabled
+                      style={{
+                        width: "100%",
+                        padding: "clamp(14px, 2.5vw, 18px)",
+                        border: "2px solid #e2e8f0",
+                        borderRadius: "16px",
+                        fontSize: "clamp(15px, 2vw, 16px)",
+                        background: "rgba(248, 250, 252, 0.8)",
+                        backdropFilter: "blur(10px)",
+                        WebkitBackdropFilter: "blur(10px)",
+                        color: "#64748b",
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+                      }}
+                    />
+                    <p style={{
+                      fontSize: "clamp(13px, 2vw, 14px)",
+                      color: "#94a3b8",
+                      marginTop: "clamp(8px, 1.5vw, 10px)",
+                      margin: 0
+                    }}>
+                      Username cannot be changed
+                    </p>
+                  </div>
+
+                  {/* Full Name */}
+                  <div>
+                    <label style={{
+                      display: "block",
+                      fontSize: "clamp(15px, 2vw, 16px)",
+                      fontWeight: "600",
+                      color: "#1e293b",
+                      marginBottom: "clamp(10px, 1.5vw, 12px)",
+                      letterSpacing: "-0.01em"
+                    }}>
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      name="full_name"
+                      value={formData.full_name}
+                      onChange={handleChange}
+                      style={{
+                        width: "100%",
+                        padding: "clamp(14px, 2.5vw, 18px)",
+                        border: "2px solid #e2e8f0",
+                        borderRadius: "16px",
+                        fontSize: "clamp(15px, 2vw, 16px)",
+                        background: "rgba(255, 255, 255, 0.8)",
+                        backdropFilter: "blur(10px)",
+                        WebkitBackdropFilter: "blur(10px)",
+                        color: "#1e293b",
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = "#6366f1";
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.95)";
+                        e.currentTarget.style.boxShadow = "0 0 0 4px rgba(99, 102, 241, 0.1), 0 8px 24px rgba(0, 0, 0, 0.08)";
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.8)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    />
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label style={{
+                      display: "block",
+                      fontSize: "clamp(15px, 2vw, 16px)",
+                      fontWeight: "600",
+                      color: "#1e293b",
+                      marginBottom: "clamp(10px, 1.5vw, 12px)",
+                      letterSpacing: "-0.01em"
+                    }}>
+                      Email <span style={{ color: "#dc2626" }}>*</span>
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                      style={{
+                        width: "100%",
+                        padding: "clamp(14px, 2.5vw, 18px)",
+                        border: "2px solid #e2e8f0",
+                        borderRadius: "16px",
+                        fontSize: "clamp(15px, 2vw, 16px)",
+                        background: "rgba(255, 255, 255, 0.8)",
+                        backdropFilter: "blur(10px)",
+                        WebkitBackdropFilter: "blur(10px)",
+                        color: "#1e293b",
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = "#6366f1";
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.95)";
+                        e.currentTarget.style.boxShadow = "0 0 0 4px rgba(99, 102, 241, 0.1), 0 8px 24px rgba(0, 0, 0, 0.08)";
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.8)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Change Password Section */}
+              <div style={{
+                marginTop: "clamp(40px, 6vw, 48px)",
+                paddingTop: "clamp(32px, 5vw, 40px)",
+                borderTop: "1px solid rgba(226, 232, 240, 0.5)",
+                opacity: visible ? 1 : 0,
+                transform: visible ? "translateY(0)" : "translateY(20px)",
+                transition: "opacity 0.4s ease-out 0.4s, transform 0.4s ease-out 0.4s"
+              }}>
+                <h3 style={{
+                  fontSize: "clamp(22px, 3.5vw, 28px)",
+                  fontWeight: "700",
+                  color: "#1e293b",
+                  marginBottom: "clamp(12px, 2vw, 16px)",
+                  letterSpacing: "-0.01em"
+                }}>
+                  Change Password
+                </h3>
+                <p style={{
+                  fontSize: "clamp(14px, 2vw, 15px)",
+                  color: "#64748b",
+                  marginBottom: "clamp(24px, 4vw, 32px)",
+                  fontWeight: "400"
+                }}>
+                  Leave blank if you don't want to change your password
+                </p>
+
+                <div style={{ display: "grid", gap: "clamp(24px, 4vw, 32px)" }}>
+                  {/* Current Password */}
+                  <div>
+                    <label style={{
+                      display: "block",
+                      fontSize: "clamp(15px, 2vw, 16px)",
+                      fontWeight: "600",
+                      color: "#1e293b",
+                      marginBottom: "clamp(10px, 1.5vw, 12px)",
+                      letterSpacing: "-0.01em"
+                    }}>
+                      Current Password
+                    </label>
+                    <input
+                      type="password"
+                      name="current_password"
+                      value={formData.current_password}
+                      onChange={handleChange}
+                      style={{
+                        width: "100%",
+                        padding: "clamp(14px, 2.5vw, 18px)",
+                        border: "2px solid #e2e8f0",
+                        borderRadius: "16px",
+                        fontSize: "clamp(15px, 2vw, 16px)",
+                        background: "rgba(255, 255, 255, 0.8)",
+                        backdropFilter: "blur(10px)",
+                        WebkitBackdropFilter: "blur(10px)",
+                        color: "#1e293b",
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = "#6366f1";
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.95)";
+                        e.currentTarget.style.boxShadow = "0 0 0 4px rgba(99, 102, 241, 0.1), 0 8px 24px rgba(0, 0, 0, 0.08)";
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.8)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    />
+                  </div>
+
+                  {/* New Password */}
+                  <div>
+                    <label style={{
+                      display: "block",
+                      fontSize: "clamp(15px, 2vw, 16px)",
+                      fontWeight: "600",
+                      color: "#1e293b",
+                      marginBottom: "clamp(10px, 1.5vw, 12px)",
+                      letterSpacing: "-0.01em"
+                    }}>
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      name="new_password"
+                      value={formData.new_password}
+                      onChange={handleChange}
+                      style={{
+                        width: "100%",
+                        padding: "clamp(14px, 2.5vw, 18px)",
+                        border: "2px solid #e2e8f0",
+                        borderRadius: "16px",
+                        fontSize: "clamp(15px, 2vw, 16px)",
+                        background: "rgba(255, 255, 255, 0.8)",
+                        backdropFilter: "blur(10px)",
+                        WebkitBackdropFilter: "blur(10px)",
+                        color: "#1e293b",
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = "#6366f1";
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.95)";
+                        e.currentTarget.style.boxShadow = "0 0 0 4px rgba(99, 102, 241, 0.1), 0 8px 24px rgba(0, 0, 0, 0.08)";
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.8)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    />
+                  </div>
+
+                  {/* Confirm New Password */}
+                  <div>
+                    <label style={{
+                      display: "block",
+                      fontSize: "clamp(15px, 2vw, 16px)",
+                      fontWeight: "600",
+                      color: "#1e293b",
+                      marginBottom: "clamp(10px, 1.5vw, 12px)",
+                      letterSpacing: "-0.01em"
+                    }}>
+                      Confirm New Password
+                    </label>
+                    <input
+                      type="password"
+                      name="confirm_password"
+                      value={formData.confirm_password}
+                      onChange={handleChange}
+                      style={{
+                        width: "100%",
+                        padding: "clamp(14px, 2.5vw, 18px)",
+                        border: "2px solid #e2e8f0",
+                        borderRadius: "16px",
+                        fontSize: "clamp(15px, 2vw, 16px)",
+                        background: "rgba(255, 255, 255, 0.8)",
+                        backdropFilter: "blur(10px)",
+                        WebkitBackdropFilter: "blur(10px)",
+                        color: "#1e293b",
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = "#6366f1";
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.95)";
+                        e.currentTarget.style.boxShadow = "0 0 0 4px rgba(99, 102, 241, 0.1), 0 8px 24px rgba(0, 0, 0, 0.08)";
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.8)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Button - Magnetic */}
+              <MagneticButton
+                type="submit"
+                disabled={loading}
+                mousePosition={mousePosition}
                 style={{
                   width: "100%",
-                  padding: "12px",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "8px",
-                  fontSize: "14px"
+                  padding: "clamp(16px, 2.5vw, 20px)",
+                  background: loading
+                    ? "linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%)"
+                    : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "16px",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  fontSize: "clamp(16px, 2.5vw, 18px)",
+                  fontWeight: "700",
+                  transition: "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                  boxShadow: loading
+                    ? "none"
+                    : "0 8px 24px rgba(99, 102, 241, 0.4), 0 4px 12px rgba(99, 102, 241, 0.2)",
+                  marginTop: "clamp(32px, 5vw, 40px)",
+                  letterSpacing: "-0.01em",
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? "translateY(0)" : "translateY(20px)",
+                  animation: visible ? "fadeInUp 0.4s ease-out 0.5s both" : "none"
                 }}
-              />
-            </div>
-
-            <div style={{ marginBottom: "20px" }}>
-              <label style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: "600",
-                color: "#2d3748",
-                marginBottom: "8px"
-              }}>
-                New Password
-              </label>
-              <input
-                type="password"
-                name="new_password"
-                value={formData.new_password}
-                onChange={handleChange}
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "8px",
-                  fontSize: "14px"
+                onMouseEnter={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.boxShadow = "0 12px 32px rgba(99, 102, 241, 0.5), 0 8px 16px rgba(99, 102, 241, 0.3)";
+                  }
                 }}
-              />
-            </div>
-
-            <div style={{ marginBottom: "20px" }}>
-              <label style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: "600",
-                color: "#2d3748",
-                marginBottom: "8px"
-              }}>
-                Confirm New Password
-              </label>
-              <input
-                type="password"
-                name="confirm_password"
-                value={formData.confirm_password}
-                onChange={handleChange}
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "8px",
-                  fontSize: "14px"
+                onMouseLeave={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.boxShadow = "0 8px 24px rgba(99, 102, 241, 0.4), 0 4px 12px rgba(99, 102, 241, 0.2)";
+                  }
                 }}
-              />
-            </div>
+              >
+                {loading ? "Saving..." : "Save Changes"}
+              </MagneticButton>
+            </form>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: "12px",
-              background: loading ? "#cbd5e1" : "#4f46e5",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              cursor: loading ? "not-allowed" : "pointer",
-              fontSize: "15px",
-              fontWeight: "600",
-              marginTop: "24px",
-              transition: "all 0.2s ease"
-            }}
-            onMouseEnter={(e) => {
-              if (!loading) {
-                e.currentTarget.style.background = "#4338ca";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!loading) {
-                e.currentTarget.style.background = "#4f46e5";
-              }
-            }}
-          >
-            {loading ? "Saving..." : "Save Changes"}
-          </button>
-        </form>
         </div>
       </div>
-      <Footer />
-    </div>
+    </>
   );
 }
 
+// Magnetic Button Component
+function MagneticButton({ children, onClick, mousePosition, style, type, disabled, onMouseEnter, onMouseLeave }) {
+  const buttonRef = useRef(null);
+  const [transform, setTransform] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (!buttonRef.current || disabled) return;
+    
+    const rect = buttonRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    const distanceX = mousePosition.x - centerX;
+    const distanceY = mousePosition.y - centerY;
+    const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+    
+    if (distance < 150) {
+      const force = (150 - distance) / 150;
+      setTransform({
+        x: distanceX * force * 0.1,
+        y: distanceY * force * 0.1
+      });
+    } else {
+      setTransform({ x: 0, y: 0 });
+    }
+  }, [mousePosition, disabled]);
+
+  return (
+    <button
+      ref={buttonRef}
+      type={type || "button"}
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        ...style,
+        transform: `translate(${transform.x}px, ${transform.y}px) ${style?.transform || ""}`,
+        transition: "transform 0.2s ease-out"
+      }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      {children}
+    </button>
+  );
+}

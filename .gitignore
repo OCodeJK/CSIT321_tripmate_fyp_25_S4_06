@@ -391,6 +391,9 @@ dist/
 *.tar.gz
 *.zip
 
+# React build folder (explicit)
+frontend/tripmate-frontend/build/
+
 # Docker
 .dockerignore
 docker-compose.override.yml
@@ -410,6 +413,14 @@ docker-compose.override.yml
 *.p12
 secrets/
 .secrets
+
+# Environment files (but keep examples)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
 
 # ============================================
 # Keep empty directories structure

@@ -12,11 +12,37 @@ import PhotoManager from "./PhotoManager";
 import Slideshow from "./Slideshow";
 import AIChat from "./AIChat";
 import ExportButton from "./ExportButton";
-import Footer from "./Footer";
+import SuccessModal from "./SuccessModal";
+import WeatherTrafficInfo from "./WeatherTrafficInfo";
+
+// Icon components
+const CarIcon = ({ size = 24, color = "currentColor" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
+    <circle cx="7" cy="17" r="2"/>
+    <path d="M9 17h6"/>
+    <circle cx="17" cy="17" r="2"/>
+  </svg>
+);
+
+const PlaneIcon = ({ size = 24, color = "currentColor" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>
+  </svg>
+);
+
+const SaveIcon = ({ size = 24, color = "currentColor" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>
+    <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/>
+    <path d="M7 3v4a1 1 0 0 0 1 1h7"/>
+  </svg>
+);
 
 const containerStyle = {
   width: "100%",
   height: "60vh",
+  minHeight: "400px",
   borderRadius: "12px",
   overflow: "hidden",
 };
@@ -57,9 +83,12 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
   const [lastSavedData, setLastSavedData] = useState(null);
   const [budgetData, setBudgetData] = useState(null);
   const [budgetItems, setBudgetItems] = useState([]);
+  const [monthlyTripCount, setMonthlyTripCount] = useState({ trips_used: 0, limit: 2 });
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [newExpense, setNewExpense] = useState({ category: "", description: "", amount: "" });
   const [isEnded, setIsEnded] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const mapRef = useRef(null);
   const [mapKey, setMapKey] = useState(0);
 
@@ -147,6 +176,21 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
     }
   }, [token, loadTripPhotos]);
 
+  const loadMonthlyTripCount = useCallback(async () => {
+    if (!token || !user) return;
+    try {
+      const res = await axios.get("http://127.0.0.1:5000/api/trips/monthly-count", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMonthlyTripCount({
+        trips_used: res.data.trips_used || 0,
+        limit: res.data.limit || 2
+      });
+    } catch (err) {
+      console.error("Error loading monthly trip count:", err);
+    }
+  }, [token, user]);
+
   // Load existing trip if tripId provided
   useEffect(() => {
     // Normalize tripId to a number
@@ -168,6 +212,13 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
       setHasUnsavedChanges(false);
     }
   }, [tripId, token, loadTrip]);
+
+  // Load monthly trip count on mount
+  useEffect(() => {
+    if (token && user) {
+      loadMonthlyTripCount();
+    }
+  }, [token, user, loadMonthlyTripCount]);
 
   const clearMap = () => {
     setDirections(null);
@@ -272,10 +323,20 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
       const res = await axios.get(`http://127.0.0.1:5000/api/budget/trip/${tripId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setBudgetData(res.data);
-      setBudgetItems(res.data.items || []);
+      // Only set budget data if there's actually a budget set (initial_budget > 0)
+      if (res.data && res.data.initial_budget && typeof res.data.initial_budget === 'number' && res.data.initial_budget > 0) {
+        setBudgetData(res.data);
+        setBudgetItems(res.data.items || []);
+      } else {
+        // Clear budget data if no budget is set
+        setBudgetData(null);
+        setBudgetItems([]);
+      }
     } catch (err) {
       console.error("Error loading budget:", err);
+      // Clear budget data on error
+      setBudgetData(null);
+      setBudgetItems([]);
     }
   };
 
@@ -327,19 +388,13 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
       });
       setIsEnded(true);
       
-      // Automatically show slideshow if there are photos
-      const hasPhotos = Object.keys(photos).length > 0 && 
-        Object.values(photos).some(locationPhotos => locationPhotos.length > 0);
+      // Reload photos to ensure we have the latest data before showing slideshow
+      await loadTripPhotos(currentTripId);
       
-      if (hasPhotos) {
-        setShowSlideshow(true);
-      } else {
-        alert("Trip ended successfully!");
-        // Navigate back to trip history if no photos
-        if (onBack) {
-          onBack();
-        }
-      }
+      // Always show slideshow when trip ends (for both free and premium users)
+      // The slideshow component will show "End of Trip" message if no photos exist
+      // Free users can view slideshow but cannot export to MP4
+      setShowSlideshow(true);
     } catch (err) {
       console.error("Error ending trip:", err);
       alert("Failed to end trip");
@@ -347,6 +402,10 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
   };
 
   const handleSubmit = async (e) => {
+    // Prevent submission if trip has ended
+    if (currentTripId && isEnded) {
+      return;
+    }
     e.preventDefault();
     
     if (!tripName.trim()) {
@@ -456,7 +515,8 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
             setLastSavedData(JSON.stringify(tripData));
             // Reload budget data to reflect the updated initial budget
             loadBudgetData(tripIdNum);
-            alert("Trip updated successfully!");
+            setSuccessMessage("Your trip has been updated successfully!");
+            setShowSuccessModal(true);
           } else {
             // Create new trip
             const saveRes = await axios.post("http://127.0.0.1:5000/api/trips/", tripData, {
@@ -470,7 +530,10 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
             if (newTripId) {
               loadBudgetData(newTripId);
             }
-            alert("Trip saved successfully!");
+            setSuccessMessage("Your trip has been created successfully!");
+            setShowSuccessModal(true);
+            // Refresh monthly trip count after creating a trip
+            loadMonthlyTripCount();
           }
         } catch (saveErr) {
           console.error("Error saving trip:", saveErr);
@@ -479,6 +542,9 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
           if (saveErr.response) {
             if (saveErr.response.status === 401) {
               errorMsg = "Authentication failed. Please sign in again to save trips.";
+            } else if (saveErr.response.status === 403) {
+              // Monthly trip limit reached
+              errorMsg = saveErr.response.data?.message || saveErr.response.data?.error || "Monthly trip limit reached. Free plan allows up to 2 trips per month. Upgrade to Premium for unlimited trips.";
             } else if (saveErr.response.data?.error) {
               errorMsg = `Error saving trip: ${saveErr.response.data.error}`;
             } else {
@@ -521,16 +587,47 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
     }));
 
     const directionsService = new window.google.maps.DirectionsService();
-    directionsService.route(
-      {
-        origin: route[0],
-        destination: route[route.length - 1],
-        waypoints,
-        travelMode: window.google.maps.TravelMode.DRIVING,
+    
+    // Use traffic-aware routing with departure time (current time)
+    const request = {
+      origin: route[0],
+      destination: route[route.length - 1],
+      waypoints,
+      travelMode: window.google.maps.TravelMode.DRIVING,
+      drivingOptions: {
+        departureTime: new Date(),
+        trafficModel: window.google.maps.TrafficModel.OPTIMISTIC
       },
+      provideRouteAlternatives: true, // Get multiple routes to find fastest
+      optimizeWaypoints: false // Keep waypoint order
+    };
+
+    directionsService.route(
+      request,
       (result, status) => {
         if (status === "OK" && result) {
-          setDirections(result);
+          // Select the fastest route if multiple routes are available
+          let bestRoute = result.routes[0];
+          if (result.routes.length > 1) {
+            // Find route with shortest duration in traffic
+            bestRoute = result.routes.reduce((best, current) => {
+              const bestDuration = best.legs.reduce((sum, leg) => 
+                sum + (leg.duration_in_traffic?.value || leg.duration.value), 0
+              );
+              const currentDuration = current.legs.reduce((sum, leg) => 
+                sum + (leg.duration_in_traffic?.value || leg.duration.value), 0
+              );
+              return currentDuration < bestDuration ? current : best;
+            });
+          }
+          
+          // Create result object with the best route
+          const optimizedResult = {
+            ...result,
+            routes: [bestRoute]
+          };
+          
+          setDirections(optimizedResult);
         } else {
           console.error("Error fetching directions:", status);
         }
@@ -585,19 +682,45 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
           stopover: true,
         }));
 
-        directionsService.route(
-          {
-            origin: segment[0],
-            destination: segment[segment.length - 1],
-            waypoints,
-            travelMode: window.google.maps.TravelMode.DRIVING,
+        const request = {
+          origin: segment[0],
+          destination: segment[segment.length - 1],
+          waypoints,
+          travelMode: window.google.maps.TravelMode.DRIVING,
+          drivingOptions: {
+            departureTime: new Date(),
+            trafficModel: window.google.maps.TrafficModel.OPTIMISTIC
           },
+          provideRouteAlternatives: true
+        };
+
+        directionsService.route(
+          request,
           (result, status) => {
             if (status === "OK" && result) {
+              // Select fastest route based on traffic
+              let bestRoute = result.routes[0];
+              if (result.routes.length > 1) {
+                bestRoute = result.routes.reduce((best, current) => {
+                  const bestDuration = best.legs.reduce((sum, leg) => 
+                    sum + (leg.duration_in_traffic?.value || leg.duration.value), 0
+                  );
+                  const currentDuration = current.legs.reduce((sum, leg) => 
+                    sum + (leg.duration_in_traffic?.value || leg.duration.value), 0
+                  );
+                  return currentDuration < bestDuration ? current : best;
+                });
+              }
+              
+              const optimizedResult = {
+                ...result,
+                routes: [bestRoute]
+              };
+              
               if (idx === 0) {
-                setDirections(result);
+                setDirections(optimizedResult);
               } else {
-                setAirportDirections(result);
+                setAirportDirections(optimizedResult);
               }
             } else {
               console.error(`Error fetching directions for segment ${idx}:`, status);
@@ -635,62 +758,122 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
   }
 
   return (
-    <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "24px" }}>
+    <div style={{ 
+      width: "100%",
+      maxWidth: "1000px",
+      margin: "0 auto",
+      padding: "clamp(24px, 4vw, 48px) clamp(24px, 4vw, 48px)",
+      position: "relative",
+      zIndex: 1
+    }}>
       {onBack && (
         <button
           onClick={handleBackClick}
           style={{
             marginBottom: "24px",
-            padding: "10px 20px",
-            background: "white",
-            color: "#4f46e5",
-            border: "1px solid #4f46e5",
-            borderRadius: "8px",
+            padding: "clamp(14px, 2vw, 16px) clamp(24px, 3vw, 32px)",
+            background: "rgba(255, 255, 255, 0.8)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            color: "#667eea",
+            border: "1.5px solid rgba(102, 126, 234, 0.3)",
+            borderRadius: "16px",
             cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "500",
-            transition: "all 0.2s ease"
+            fontSize: "clamp(14px, 2vw, 15px)",
+            fontWeight: "600",
+            transition: "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            boxShadow: "0 4px 16px rgba(102, 126, 234, 0.15), 0 0 0 0px rgba(102, 126, 234, 0.1) inset",
+            position: "relative",
+            overflow: "hidden"
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#4f46e5";
+            e.currentTarget.style.background = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
             e.currentTarget.style.color = "white";
+            e.currentTarget.style.transform = "translateX(-6px) translateY(-2px) scale(1.02)";
+            e.currentTarget.style.boxShadow = "0 12px 32px rgba(102, 126, 234, 0.4), 0 4px 16px rgba(118, 75, 162, 0.3)";
+            e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
+            const arrow = e.currentTarget.querySelector('.back-arrow');
+            if (arrow) {
+              arrow.style.transform = "translateX(-4px)";
+            }
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "white";
-            e.currentTarget.style.color = "#4f46e5";
+            e.currentTarget.style.background = "rgba(255, 255, 255, 0.8)";
+            e.currentTarget.style.color = "#667eea";
+            e.currentTarget.style.transform = "translateX(0) translateY(0) scale(1)";
+            e.currentTarget.style.boxShadow = "0 4px 16px rgba(102, 126, 234, 0.15), 0 0 0 0px rgba(102, 126, 234, 0.1) inset";
+            e.currentTarget.style.borderColor = "rgba(102, 126, 234, 0.3)";
+            const arrow = e.currentTarget.querySelector('.back-arrow');
+            if (arrow) {
+              arrow.style.transform = "translateX(0)";
+            }
           }}
         >
-          ← Back to Trips
+          <span 
+            className="back-arrow"
+            style={{ 
+              fontSize: "18px",
+              display: "inline-block",
+              transition: "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              transform: "translateX(0)"
+            }}
+          >
+            ←
+          </span>
+          <span>Back to Trips</span>
         </button>
       )}
 
       <div style={{ 
-        background: "white", 
-        borderRadius: "16px", 
-        padding: "32px", 
-        marginBottom: "24px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-        border: "1px solid #f1f5f9"
+        background: "rgba(255, 255, 255, 0.95)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderRadius: "24px", 
+        padding: "clamp(40px, 6vw, 64px) clamp(32px, 5vw, 48px)", 
+        marginBottom: "clamp(16px, 3vw, 24px)",
+        boxShadow: "0 20px 60px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5) inset",
+        border: "1px solid rgba(255, 255, 255, 0.3)",
+        animation: "fadeInUp 0.6s ease-out",
+        width: "100%"
       }}>
         <h1 style={{ 
-          fontSize: "24px", 
+          fontSize: "clamp(28px, 5vw, 36px)", 
           fontWeight: "800", 
-          marginBottom: "8px",
-          color: "#0f172a",
-          letterSpacing: "-0.02em",
-          lineHeight: "1.2"
+          marginBottom: "12px",
+          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          backgroundClip: "text",
+          letterSpacing: "-0.03em",
+          lineHeight: "1.2",
+          marginTop: "0"
         }}>
           {currentTripId ? "Edit Trip" : "Plan New Trip"}
         </h1>
+        <p style={{
+          fontSize: "clamp(14px, 2vw, 16px)",
+          color: "#64748b",
+          marginBottom: "32px",
+          fontWeight: "400"
+        }}>
+          Create your perfect travel itinerary with ease
+        </p>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: "24px" }}>
+          <div style={{ 
+            marginBottom: "28px",
+            animation: "fadeInUp 0.6s ease-out 0.1s both"
+          }}>
             <label style={{ 
               display: "block", 
-              marginBottom: "8px", 
-              fontSize: "13px", 
+              marginBottom: "10px", 
+              fontSize: "14px", 
               fontWeight: "600",
-              color: "#475569"
+              color: "#1e293b",
+              letterSpacing: "0.01em"
             }}>
               Trip Name
             </label>
@@ -703,36 +886,50 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
               }}
               placeholder="e.g., Summer Europe Adventure"
               required
+              disabled={currentTripId && isEnded}
                 style={{
                   width: "100%",
                   maxWidth: "600px",
-                  padding: "12px 16px",
-                  borderRadius: "10px",
-                  border: "1px solid #e2e8f0",
+                  padding: "14px 18px",
+                  borderRadius: "12px",
+                  border: "2px solid #e2e8f0",
                   fontSize: "15px",
-                  background: "white",
-                  transition: "all 0.2s ease",
+                  background: currentTripId && isEnded 
+                    ? "rgba(241, 245, 249, 0.8)" 
+                    : "linear-gradient(to bottom, #ffffff, #f8fafc)",
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                   outline: "none",
-                  fontFamily: "inherit"
+                  fontFamily: "inherit",
+                  fontWeight: "500",
+                  cursor: currentTripId && isEnded ? "not-allowed" : "text",
+                  opacity: currentTripId && isEnded ? 0.7 : 1
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "#cbd5e1";
-                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(15, 23, 42, 0.05)";
+                  if (!(currentTripId && isEnded)) {
+                    e.currentTarget.style.borderColor = "#667eea";
+                    e.currentTarget.style.boxShadow = "0 0 0 4px rgba(102, 126, 234, 0.1), 0 4px 12px rgba(102, 126, 234, 0.15)";
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                  }
                 }}
                 onBlur={(e) => {
                   e.currentTarget.style.borderColor = "#e2e8f0";
                   e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.transform = "translateY(0)";
                 }}
             />
           </div>
 
-          <div style={{ marginBottom: "24px" }}>
+          <div style={{ 
+            marginBottom: "28px",
+            animation: "fadeInUp 0.6s ease-out 0.2s both"
+          }}>
             <label style={{ 
               display: "block", 
-              marginBottom: "8px", 
-              fontSize: "13px", 
+              marginBottom: "10px", 
+              fontSize: "14px", 
               fontWeight: "600",
-              color: "#475569"
+              color: "#1e293b",
+              letterSpacing: "0.01em"
             }}>
               Description <span style={{ fontWeight: "400", fontSize: "12px", color: "#94a3b8" }}>(optional)</span>
             </label>
@@ -743,38 +940,51 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
                 checkForUnsavedChanges();
               }}
               placeholder="Add a description for your trip..."
-              rows={3}
+              rows={4}
+              disabled={currentTripId && isEnded}
               style={{
                 width: "100%",
                 maxWidth: "600px",
-                padding: "12px 16px",
-                borderRadius: "10px",
-                border: "1px solid #e2e8f0",
+                padding: "14px 18px",
+                borderRadius: "12px",
+                border: "2px solid #e2e8f0",
                 fontSize: "15px",
-                background: "white",
-                transition: "all 0.2s ease",
+                background: currentTripId && isEnded 
+                  ? "rgba(241, 245, 249, 0.8)" 
+                  : "linear-gradient(to bottom, #ffffff, #f8fafc)",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 outline: "none",
                 fontFamily: "inherit",
-                resize: "vertical"
+                resize: "vertical",
+                fontWeight: "500",
+                lineHeight: "1.6",
+                cursor: currentTripId && isEnded ? "not-allowed" : "text",
+                opacity: currentTripId && isEnded ? 0.7 : 1
               }}
               onFocus={(e) => {
-                e.currentTarget.style.borderColor = "#cbd5e1";
-                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(15, 23, 42, 0.05)";
+                e.currentTarget.style.borderColor = "#667eea";
+                e.currentTarget.style.boxShadow = "0 0 0 4px rgba(102, 126, 234, 0.1), 0 4px 12px rgba(102, 126, 234, 0.15)";
+                e.currentTarget.style.transform = "translateY(-1px)";
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = "#e2e8f0";
                 e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             />
           </div>
 
-          <div style={{ marginBottom: "24px" }}>
+          <div style={{ 
+            marginBottom: "28px",
+            animation: "fadeInUp 0.6s ease-out 0.3s both"
+          }}>
             <label style={{ 
               display: "block", 
-              marginBottom: "8px", 
-              fontSize: "13px", 
+              marginBottom: "10px", 
+              fontSize: "14px", 
               fontWeight: "600",
-              color: "#475569"
+              color: "#1e293b",
+              letterSpacing: "0.01em"
             }}>
               Starting Budget <span style={{ fontWeight: "400", fontSize: "12px", color: "#94a3b8" }}>(optional)</span>
             </label>
@@ -788,36 +998,50 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
               placeholder="Enter your starting budget..."
               min="0"
               step="0.01"
+              disabled={currentTripId && isEnded}
               style={{
                 width: "100%",
                 maxWidth: "600px",
-                padding: "12px 16px",
-                borderRadius: "10px",
-                border: "1px solid #e2e8f0",
+                padding: "14px 18px",
+                borderRadius: "12px",
+                border: "2px solid #e2e8f0",
                 fontSize: "15px",
-                background: "white",
-                transition: "all 0.2s ease",
+                background: currentTripId && isEnded 
+                  ? "rgba(241, 245, 249, 0.8)" 
+                  : "linear-gradient(to bottom, #ffffff, #f8fafc)",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 outline: "none",
-                fontFamily: "inherit"
+                fontFamily: "inherit",
+                fontWeight: "500",
+                cursor: currentTripId && isEnded ? "not-allowed" : "text",
+                opacity: currentTripId && isEnded ? 0.7 : 1
               }}
               onFocus={(e) => {
-                e.currentTarget.style.borderColor = "#cbd5e1";
-                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(15, 23, 42, 0.05)";
+                if (!(currentTripId && isEnded)) {
+                  e.currentTarget.style.borderColor = "#667eea";
+                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(102, 126, 234, 0.1), 0 4px 12px rgba(102, 126, 234, 0.15)";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = "#e2e8f0";
                 e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             />
           </div>
 
-          <div style={{ marginBottom: "24px" }}>
+          <div style={{ 
+            marginBottom: "28px",
+            animation: "fadeInUp 0.6s ease-out 0.4s both"
+          }}>
             <label style={{ 
               display: "block", 
-              marginBottom: "8px", 
-              fontSize: "13px", 
+              marginBottom: "10px", 
+              fontSize: "14px", 
               fontWeight: "600",
-              color: "#475569"
+              color: "#1e293b",
+              letterSpacing: "0.01em"
             }}>
               Trip Start Date
             </label>
@@ -829,25 +1053,35 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
                 setTripStartDate(e.target.value);
                 checkForUnsavedChanges();
               }}
+              disabled={currentTripId && isEnded}
               style={{
                 width: "100%",
                 maxWidth: "600px",
-                padding: "12px 16px",
-                borderRadius: "10px",
-                border: "1px solid #e2e8f0",
+                padding: "14px 18px",
+                borderRadius: "12px",
+                border: "2px solid #e2e8f0",
                 fontSize: "15px",
-                background: "white",
-                transition: "all 0.2s ease",
+                background: currentTripId && isEnded 
+                  ? "rgba(241, 245, 249, 0.8)" 
+                  : "linear-gradient(to bottom, #ffffff, #f8fafc)",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 outline: "none",
-                fontFamily: "inherit"
+                fontFamily: "inherit",
+                fontWeight: "500",
+                cursor: currentTripId && isEnded ? "not-allowed" : "text",
+                opacity: currentTripId && isEnded ? 0.7 : 1
               }}
               onFocus={(e) => {
-                e.currentTarget.style.borderColor = "#cbd5e1";
-                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(15, 23, 42, 0.05)";
+                if (!(currentTripId && isEnded)) {
+                  e.currentTarget.style.borderColor = "#667eea";
+                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(102, 126, 234, 0.1), 0 4px 12px rgba(102, 126, 234, 0.15)";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = "#e2e8f0";
                 e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             />
           </div>
@@ -864,36 +1098,52 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
             </label>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               {[
-                { value: "auto", label: "Auto", icon: "🚗✈️" },
-                { value: "driving", label: "Driving", icon: "🚗" },
-                { value: "flying", label: "Flying", icon: "✈️" }
+                { value: "auto", label: "Auto", icon: "both" },
+                { value: "driving", label: "Driving", icon: "car" },
+                { value: "flying", label: "Flying", icon: "plane" }
               ].map((option) => (
                 <label
                   key={option.value}
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    padding: "10px 18px",
-                    borderRadius: "10px",
-                    border: `1px solid ${travelPreference === option.value ? "#4f46e5" : "#e2e8f0"}`,
-                    background: travelPreference === option.value ? "#4f46e5" : "white",
-                    cursor: "pointer",
-                    fontSize: "13px",
+                    gap: "8px",
+                    padding: "14px 24px",
+                    borderRadius: "14px",
+                    border: `2px solid ${travelPreference === option.value ? "#667eea" : "#e2e8f0"}`,
+                    background: currentTripId && isEnded
+                      ? "rgba(241, 245, 249, 0.8)"
+                      : travelPreference === option.value 
+                      ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+                      : "linear-gradient(to bottom, #ffffff, #f8fafc)",
+                    color: currentTripId && isEnded
+                      ? "#94a3b8"
+                      : travelPreference === option.value ? "white" : "#475569",
+                    cursor: currentTripId && isEnded ? "not-allowed" : "pointer",
+                    fontSize: "14px",
                     fontWeight: "600",
-                    color: travelPreference === option.value ? "white" : "#64748b",
-                    transition: "all 0.2s ease",
+                    opacity: currentTripId && isEnded ? 0.7 : 1,
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                    boxShadow: travelPreference === option.value 
+                      ? "0 4px 16px rgba(102, 126, 234, 0.3)" 
+                      : "0 2px 8px rgba(0, 0, 0, 0.05)",
+                    transform: travelPreference === option.value ? "scale(1.02)" : "scale(1)",
                     flex: "1",
-                    minWidth: "120px",
+                    minWidth: "140px",
                     justifyContent: "center"
                   }}
                   onMouseEnter={(e) => {
-                    if (travelPreference !== option.value) {
-                      e.currentTarget.style.borderColor = "#4f46e5";
+                    if (!(currentTripId && isEnded) && travelPreference !== option.value) {
+                      e.currentTarget.style.borderColor = "#667eea";
+                      e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(102, 126, 234, 0.2)";
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (travelPreference !== option.value) {
+                    if (!(currentTripId && isEnded) && travelPreference !== option.value) {
                       e.currentTarget.style.borderColor = "#e2e8f0";
+                      e.currentTarget.style.transform = "scale(1)";
+                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.05)";
                     }
                   }}
                 >
@@ -906,22 +1156,44 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
                       setTravelPreference(e.target.value);
                       checkForUnsavedChanges();
                     }}
-                    style={{ marginRight: "8px", cursor: "pointer" }}
+                    disabled={currentTripId && isEnded}
+                    style={{ 
+                      margin: 0,
+                      width: "18px",
+                      height: "18px",
+                      cursor: "pointer",
+                      accentColor: "#667eea"
+                    }}
                   />
-                  <span style={{ fontSize: "16px", marginRight: "6px" }}>{option.icon}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "18px" }}>
+                    {option.icon === "both" ? (
+                      <>
+                        <CarIcon size={18} color={travelPreference === option.value ? "white" : "#475569"} />
+                        <PlaneIcon size={18} color={travelPreference === option.value ? "white" : "#475569"} />
+                      </>
+                    ) : option.icon === "car" ? (
+                      <CarIcon size={18} color={travelPreference === option.value ? "white" : "#475569"} />
+                    ) : (
+                      <PlaneIcon size={18} color={travelPreference === option.value ? "white" : "#475569"} />
+                    )}
+                  </span>
                   {option.label}
                 </label>
               ))}
             </div>
           </div>
 
-          <div style={{ marginBottom: "24px" }}>
+          <div style={{ 
+            marginBottom: "28px",
+            animation: "fadeInUp 0.6s ease-out 0.6s both"
+          }}>
             <label style={{ 
               display: "block", 
-              marginBottom: "8px", 
-              fontSize: "13px", 
+              marginBottom: "10px", 
+              fontSize: "14px", 
               fontWeight: "600",
-              color: "#475569"
+              color: "#1e293b",
+              letterSpacing: "0.01em"
             }}>
               Starting Point
             </label>
@@ -936,38 +1208,45 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
                 style={{
                   width: "100%",
                   maxWidth: "600px",
-                  padding: "12px 16px",
-                  borderRadius: "10px",
-                  border: "1px solid #e2e8f0",
+                  padding: "14px 18px",
+                  borderRadius: "12px",
+                  border: "2px solid #e2e8f0",
                   fontSize: "15px",
-                  background: "white",
-                  transition: "all 0.2s ease",
+                  background: "linear-gradient(to bottom, #ffffff, #f8fafc)",
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                   outline: "none",
-                  fontFamily: "inherit"
+                  fontFamily: "inherit",
+                  fontWeight: "500"
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "#cbd5e1";
-                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(15, 23, 42, 0.05)";
+                  e.currentTarget.style.borderColor = "#667eea";
+                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(102, 126, 234, 0.1), 0 4px 12px rgba(102, 126, 234, 0.15)";
+                  e.currentTarget.style.transform = "translateY(-1px)";
                 }}
                 onBlur={(e) => {
                   e.currentTarget.style.borderColor = "#e2e8f0";
                   e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.transform = "translateY(0)";
                 }}
               />
             </Autocomplete>
           </div>
 
-          <div style={{ marginBottom: "24px" }}>
+          <div style={{ 
+            marginBottom: "28px",
+            animation: "fadeInUp 0.6s ease-out 0.7s both"
+          }}>
             <div style={{ 
               display: "flex", 
               justifyContent: "space-between", 
               alignItems: "center",
-              marginBottom: "8px"
+              marginBottom: "12px"
             }}>
               <label style={{ 
-                fontSize: "13px", 
+                fontSize: "14px", 
                 fontWeight: "600",
-                color: "#475569"
+                color: "#1e293b",
+                letterSpacing: "0.01em"
               }}>
                 Destinations
               </label>
@@ -975,25 +1254,24 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
                 type="button"
                 onClick={addLocation}
                 style={{
-                  padding: "8px 16px",
-                  background: "white",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "8px",
+                  padding: "10px 20px",
+                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  border: "none",
+                  borderRadius: "12px",
                   cursor: "pointer",
                   fontSize: "13px",
                   fontWeight: "600",
-                  color: "#475569",
-                  transition: "all 0.2s ease"
+                  color: "white",
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  boxShadow: "0 4px 12px rgba(102, 126, 234, 0.3)"
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#4f46e5";
-                  e.currentTarget.style.background = "#4f46e5";
-                  e.currentTarget.style.color = "white";
+                  e.currentTarget.style.transform = "translateY(-2px) scale(1.05)";
+                  e.currentTarget.style.boxShadow = "0 6px 20px rgba(102, 126, 234, 0.4)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#e2e8f0";
-                  e.currentTarget.style.background = "white";
-                  e.currentTarget.style.color = "#475569";
+                  e.currentTarget.style.transform = "translateY(0) scale(1)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(102, 126, 234, 0.3)";
                 }}
               >
                 + Add Destination
@@ -1022,22 +1300,25 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
                     defaultValue={safeLocations[index]?.name || ""}
                     style={{
                       flex: 1,
-                      padding: "12px 16px",
-                      borderRadius: "10px",
-                      border: "1px solid #e2e8f0",
+                      padding: "14px 18px",
+                      borderRadius: "12px",
+                      border: "2px solid #e2e8f0",
                       fontSize: "15px",
-                      background: "white",
-                      transition: "all 0.2s ease",
+                      background: "linear-gradient(to bottom, #ffffff, #f8fafc)",
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                       outline: "none",
-                      fontFamily: "inherit"
+                      fontFamily: "inherit",
+                      fontWeight: "500"
                     }}
                     onFocus={(e) => {
-                      e.currentTarget.style.borderColor = "#cbd5e1";
-                      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(15, 23, 42, 0.05)";
+                      e.currentTarget.style.borderColor = "#667eea";
+                      e.currentTarget.style.boxShadow = "0 0 0 4px rgba(102, 126, 234, 0.1), 0 4px 12px rgba(102, 126, 234, 0.15)";
+                      e.currentTarget.style.transform = "translateY(-1px)";
                     }}
                     onBlur={(e) => {
                       e.currentTarget.style.borderColor = "#e2e8f0";
                       e.currentTarget.style.boxShadow = "none";
+                      e.currentTarget.style.transform = "translateY(0)";
                     }}
                   />
                 </Autocomplete>
@@ -1046,23 +1327,28 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
                     type="button"
                     onClick={() => removeLocation(index)}
                     style={{
-                      padding: "10px 16px",
-                      background: "white",
+                      padding: "12px 20px",
+                      background: "linear-gradient(to bottom, #ffffff, #fef2f2)",
                       color: "#dc2626",
-                      border: "1px solid #fecaca",
-                      borderRadius: "8px",
+                      border: "2px solid #fecaca",
+                      borderRadius: "12px",
                       cursor: "pointer",
                       fontSize: "13px",
                       fontWeight: "600",
-                      transition: "all 0.2s ease"
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow: "0 2px 8px rgba(220, 38, 38, 0.1)"
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#fef2f2";
-                      e.currentTarget.style.borderColor = "#fca5a5";
+                      e.currentTarget.style.background = "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)";
+                      e.currentTarget.style.borderColor = "#f87171";
+                      e.currentTarget.style.transform = "translateY(-2px) scale(1.05)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(220, 38, 38, 0.2)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "white";
+                      e.currentTarget.style.background = "linear-gradient(to bottom, #ffffff, #fef2f2)";
                       e.currentTarget.style.borderColor = "#fecaca";
+                      e.currentTarget.style.transform = "translateY(0) scale(1)";
+                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(220, 38, 38, 0.1)";
                     }}
                   >
                     Remove
@@ -1073,30 +1359,40 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
             })}
           </div>
 
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <div style={{ 
+            display: "flex", 
+            gap: "12px", 
+            flexWrap: "wrap",
+            animation: "fadeInUp 0.6s ease-out 0.8s both"
+          }}>
             <button
               type="button"
               onClick={clearMap}
               style={{
-                padding: "10px 20px",
-                background: "white",
+                padding: "12px 24px",
+                background: "linear-gradient(to bottom, #ffffff, #f8fafc)",
                 color: "#64748b",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
+                border: "2px solid #e2e8f0",
+                borderRadius: "12px",
                 cursor: "pointer",
                 fontSize: "14px",
-                fontWeight: "500",
-                transition: "all 0.2s ease"
+                fontWeight: "600",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.05)"
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#4f46e5";
-                e.currentTarget.style.background = "#4f46e5";
+                e.currentTarget.style.borderColor = "#667eea";
+                e.currentTarget.style.background = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
                 e.currentTarget.style.color = "white";
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 4px 16px rgba(102, 126, 234, 0.3)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = "#e2e8f0";
-                e.currentTarget.style.background = "white";
+                e.currentTarget.style.background = "linear-gradient(to bottom, #ffffff, #f8fafc)";
                 e.currentTarget.style.color = "#64748b";
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.05)";
               }}
             >
               Clear
@@ -1120,21 +1416,74 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
         )}
       </div>
 
-      {Array.isArray(optimizedRoute) && optimizedRoute.length > 0 && (
+        {Array.isArray(optimizedRoute) && optimizedRoute.length > 0 && (
         <div style={{ 
           background: "white", 
           borderRadius: "16px", 
-          padding: "24px", 
-          marginBottom: "24px",
+          padding: "clamp(16px, 3vw, 24px)", 
+          marginBottom: "clamp(16px, 3vw, 24px)",
           boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
           border: "1px solid #f1f5f9"
         }}>
           <GoogleMap
             key={mapKey}
             mapContainerStyle={containerStyle}
-            center={defaultCenter}
-            zoom={3}
-            onLoad={(map) => (mapRef.current = map)}
+            center={(() => {
+              // Calculate center from route locations if available
+              const routeLocations = optimizedRoute.filter(loc => loc.type !== "airport");
+              if (routeLocations.length > 0) {
+                const validLocs = routeLocations.filter(loc => loc.lat && loc.lng);
+                if (validLocs.length > 0) {
+                  const avgLat = validLocs.reduce((sum, loc) => sum + parseFloat(loc.lat), 0) / validLocs.length;
+                  const avgLng = validLocs.reduce((sum, loc) => sum + parseFloat(loc.lng), 0) / validLocs.length;
+                  return { lat: avgLat, lng: avgLng };
+                }
+              }
+              // Fallback to origin or first location
+              if (origin.lat && origin.lng) {
+                return { lat: parseFloat(origin.lat), lng: parseFloat(origin.lng) };
+              }
+              if (locations.length > 0 && locations[0].lat && locations[0].lng) {
+                return { lat: parseFloat(locations[0].lat), lng: parseFloat(locations[0].lng) };
+              }
+              return defaultCenter;
+            })()}
+            zoom={(() => {
+              // Set appropriate zoom based on number of locations
+              const routeLocations = optimizedRoute.filter(loc => loc.type !== "airport");
+              const totalLocations = routeLocations.length > 0 ? routeLocations.length : 
+                                    (origin.lat && origin.lng ? 1 : 0) + locations.filter(l => l.lat && l.lng).length;
+              if (totalLocations === 0) return 3;
+              if (totalLocations === 1) return 10;
+              if (totalLocations === 2) return 8;
+              return 6;
+            })()}
+            onLoad={(map) => {
+              mapRef.current = map;
+              // Fit bounds to show all markers if there are locations
+              const routeLocations = optimizedRoute.filter(loc => loc.type !== "airport");
+              const allLocations = routeLocations.length > 0 ? routeLocations : 
+                                  [origin, ...locations].filter(loc => loc.lat && loc.lng);
+              
+              if (allLocations.length > 0) {
+                const bounds = new window.google.maps.LatLngBounds();
+                allLocations.forEach(loc => {
+                  if (loc.lat && loc.lng) {
+                    bounds.extend({ lat: parseFloat(loc.lat), lng: parseFloat(loc.lng) });
+                  }
+                });
+                // Also include airport markers if any
+                airportMarkers.forEach(airport => {
+                  bounds.extend({ lat: airport.lat, lng: airport.lng });
+                });
+                
+                if (bounds.isEmpty() === false) {
+                  map.fitBounds(bounds);
+                  // Add padding to prevent markers from being at the edge
+                  map.fitBounds(bounds, { padding: 50 });
+                }
+              }
+            }}
             options={{
               styles: [
                 {
@@ -1146,7 +1495,17 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
             }}
           >
             {airportDirections && (routeMode === "MIXED") && (
-              <DirectionsRenderer directions={airportDirections} />
+              <DirectionsRenderer 
+                directions={airportDirections}
+                options={{
+                  suppressMarkers: true, // Use our custom markers instead
+                  polylineOptions: {
+                    strokeColor: "#1E90FF",
+                    strokeWeight: 3,
+                    strokeOpacity: 0.6,
+                  }
+                }}
+              />
             )}
 
             {flightPaths.map((flightPath, idx) => (
@@ -1176,19 +1535,128 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
             ))}
 
             {directions && (routeMode === "DRIVING" || routeMode === "MIXED") && (
-              <DirectionsRenderer directions={directions} />
+              <DirectionsRenderer 
+                directions={directions}
+                options={{
+                  suppressMarkers: true, // Use our custom markers instead
+                  polylineOptions: {
+                    strokeColor: "#4285F4",
+                    strokeWeight: 4,
+                    strokeOpacity: 0.8,
+                  },
+                  preserveViewport: false // Allow map to fit bounds
+                }}
+                onDirectionsChanged={() => {
+                  // Fit bounds after directions are rendered
+                  if (mapRef.current && directions) {
+                    const bounds = new window.google.maps.LatLngBounds();
+                    directions.routes.forEach(route => {
+                      route.legs.forEach(leg => {
+                        bounds.extend(leg.start_location);
+                        bounds.extend(leg.end_location);
+                      });
+                    });
+                    if (bounds.isEmpty() === false) {
+                      mapRef.current.fitBounds(bounds, { padding: 50 });
+                    }
+                  }
+                }}
+              />
             )}
 
-            {airportMarkers.map((a, i) => (
-              <Marker
-                key={i}
-                position={{ lat: a.lat, lng: a.lng }}
-                label={{ text: "✈️", fontSize: "16px" }}
-                title={a.name}
-              />
-            ))}
+            {airportMarkers.map((a, i) => {
+              // Create custom icon for plane marker using SVG data URL
+              const planeIcon = {
+                url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>
+                  </svg>
+                `)}`,
+                scaledSize: { width: 24, height: 24 },
+                anchor: { x: 12, y: 12 }
+              };
+              return (
+                <Marker
+                  key={`airport-${i}`}
+                  position={{ lat: a.lat, lng: a.lng }}
+                  icon={planeIcon}
+                  title={a.name}
+                />
+              );
+            })}
+
+            {/* Origin and Destination Markers */}
+            {(() => {
+              // Filter out airports to get only origin and destinations
+              const routeLocations = optimizedRoute.filter(loc => loc.type !== "airport");
+              if (routeLocations.length === 0) return null;
+
+              const origin = routeLocations[0];
+              const destinations = routeLocations.slice(1);
+
+              return (
+                <>
+                  {/* Origin Marker */}
+                  {origin && (
+                    <Marker
+                      key="origin"
+                      position={{ lat: origin.lat, lng: origin.lng }}
+                      icon={{
+                        path: window.google.maps.SymbolPath.CIRCLE,
+                        scale: 12,
+                        fillColor: "#10b981",
+                        fillOpacity: 1,
+                        strokeColor: "#ffffff",
+                        strokeWeight: 4,
+                      }}
+                      label={{
+                        text: "START",
+                        color: "#ffffff",
+                        fontSize: "11px",
+                        fontWeight: "bold",
+                      }}
+                      title={`Origin: ${origin.name}`}
+                      zIndex={1000}
+                    />
+                  )}
+
+                  {/* Destination Markers */}
+                  {destinations.map((dest, idx) => (
+                    <Marker
+                      key={`dest-${idx}`}
+                      position={{ lat: dest.lat, lng: dest.lng }}
+                      icon={{
+                        path: window.google.maps.SymbolPath.CIRCLE,
+                        scale: 12,
+                        fillColor: "#ef4444",
+                        fillOpacity: 1,
+                        strokeColor: "#ffffff",
+                        strokeWeight: 4,
+                      }}
+                      label={{
+                        text: `${idx + 1}`,
+                        color: "#ffffff",
+                        fontSize: "13px",
+                        fontWeight: "bold",
+                      }}
+                      title={`Destination ${idx + 1}: ${dest.name}`}
+                      zIndex={999 - idx}
+                    />
+                  ))}
+                </>
+              );
+            })()}
           </GoogleMap>
         </div>
+      )}
+
+      {/* Weather & Traffic Info - Show for all trips with routes */}
+      {optimizedRoute && optimizedRoute.length > 0 && (routeMode === "DRIVING" || routeMode === "MIXED") && allRouteLocations && allRouteLocations.length > 0 && (
+        <WeatherTrafficInfo 
+          locations={allRouteLocations} 
+          routeMode={routeMode}
+          directions={directions}
+        />
       )}
 
       {optimizedRoute.length > 0 && currentTripId && (
@@ -1199,108 +1667,182 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
             tripId={currentTripId}
             token={token}
             photos={photos}
+            user={user}
           />
 
 
           {/* Budget Tracking Section */}
-          {currentTripId && (
+          {currentTripId && ((tripBudget && tripBudget.trim() !== "" && parseFloat(tripBudget) > 0) || (budgetData && budgetData.initial_budget && typeof budgetData.initial_budget === 'number' && budgetData.initial_budget > 0)) && (
             <div style={{
-              background: "white",
-              borderRadius: "16px",
-              padding: "32px",
-              marginTop: "24px",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-              border: "1px solid #f1f5f9"
+              background: "rgba(255, 255, 255, 0.7)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              borderRadius: "24px",
+              padding: "clamp(32px, 5vw, 48px)",
+              marginTop: "clamp(24px, 4vw, 32px)",
+              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5) inset, 0 4px 16px rgba(0, 0, 0, 0.04)",
+              border: "1px solid rgba(255, 255, 255, 0.3)",
+              transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)"
             }}>
               <div style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "24px"
+                marginBottom: "clamp(24px, 4vw, 32px)",
+                flexWrap: "wrap",
+                gap: "12px"
               }}>
-                <h3 style={{
-                  fontSize: "20px",
-                  fontWeight: "700",
-                  color: "#1e293b",
-                  margin: 0
-                }}>
-                  Budget Tracker
-                </h3>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "14px",
+                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 8px 24px rgba(102, 126, 234, 0.3)"
+                  }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/>
+                      <path d="M12 18V6"/>
+                    </svg>
+                  </div>
+                  <h3 style={{
+                    fontSize: "clamp(20px, 4vw, 24px)",
+                    fontWeight: "700",
+                    margin: 0,
+                    background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                    letterSpacing: "-0.02em"
+                  }}>
+                    Budget Tracker
+                  </h3>
+                </div>
                 {isEnded && (
                   <span style={{
-                    padding: "6px 12px",
-                    background: "#f1f5f9",
+                    padding: "8px 14px",
+                    background: "linear-gradient(135deg, rgba(100, 116, 139, 0.1) 0%, rgba(148, 163, 184, 0.1) 100%)",
                     color: "#64748b",
-                    borderRadius: "6px",
+                    borderRadius: "12px",
                     fontSize: "12px",
-                    fontWeight: "600"
+                    fontWeight: "600",
+                    border: "1px solid rgba(100, 116, 139, 0.2)",
+                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)"
                   }}>
                     Trip Ended
                   </span>
                 )}
               </div>
 
-              {budgetData && (
+              {budgetData && budgetData.initial_budget && typeof budgetData.initial_budget === 'number' && budgetData.initial_budget > 0 && (
                 <>
                   <div style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: "16px",
-                    marginBottom: "24px"
+                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                    gap: "clamp(16px, 3vw, 20px)",
+                    marginBottom: "clamp(24px, 4vw, 32px)"
                   }}>
                     <div style={{
-                      padding: "20px",
-                      background: "#f8fafc",
-                      borderRadius: "12px",
-                      border: "1px solid #e2e8f0"
-                    }}>
-                      <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px", fontWeight: "500" }}>
+                      padding: "clamp(20px, 3vw, 28px)",
+                      background: "rgba(255, 255, 255, 0.6)",
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
+                      borderRadius: "18px",
+                      border: "1px solid rgba(255, 255, 255, 0.4)",
+                      boxShadow: "0 4px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.02) inset",
+                      transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-4px)";
+                      e.currentTarget.style.boxShadow = "0 8px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(102, 126, 234, 0.1) inset";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.02) inset";
+                    }}
+                    >
+                      <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "8px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         Initial Budget
                       </div>
-                      <div style={{ fontSize: "24px", fontWeight: "700", color: "#1e293b" }}>
-                        ${budgetData.initial_budget?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "0.00"}
+                      <div style={{ fontSize: "clamp(22px, 4vw, 28px)", fontWeight: "800", color: "#1e293b", letterSpacing: "-0.02em" }}>
+                        ${budgetData.initial_budget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                     <div style={{
-                      padding: "20px",
-                      background: "#f8fafc",
-                      borderRadius: "12px",
-                      border: "1px solid #e2e8f0"
-                    }}>
-                      <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px", fontWeight: "500" }}>
+                      padding: "clamp(20px, 3vw, 28px)",
+                      background: "rgba(255, 255, 255, 0.6)",
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
+                      borderRadius: "18px",
+                      border: "1px solid rgba(255, 255, 255, 0.4)",
+                      boxShadow: "0 4px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.02) inset",
+                      transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-4px)";
+                      e.currentTarget.style.boxShadow = "0 8px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(102, 126, 234, 0.1) inset";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.02) inset";
+                    }}
+                    >
+                      <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "8px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         Total Spent
                       </div>
-                      <div style={{ fontSize: "24px", fontWeight: "700", color: budgetData.exceeded ? "#dc2626" : "#1e293b" }}>
-                        ${budgetData.total_spent?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "0.00"}
+                      <div style={{ fontSize: "clamp(22px, 4vw, 28px)", fontWeight: "800", color: budgetData.exceeded ? "#dc2626" : "#1e293b", letterSpacing: "-0.02em" }}>
+                        ${budgetData.total_spent && budgetData.total_spent > 0 ? budgetData.total_spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
                       </div>
                     </div>
                     <div style={{
-                      padding: "20px",
-                      background: budgetData.exceeded ? "#fef2f2" : "#f0fdf4",
-                      borderRadius: "12px",
-                      border: `1px solid ${budgetData.exceeded ? "#fecaca" : "#bbf7d0"}`
-                    }}>
-                      <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px", fontWeight: "500" }}>
+                      padding: "clamp(20px, 3vw, 28px)",
+                      background: budgetData.exceeded 
+                        ? "linear-gradient(135deg, rgba(254, 242, 242, 0.8) 0%, rgba(254, 202, 202, 0.4) 100%)" 
+                        : "linear-gradient(135deg, rgba(240, 253, 244, 0.8) 0%, rgba(187, 247, 208, 0.4) 100%)",
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
+                      borderRadius: "18px",
+                      border: `1px solid ${budgetData.exceeded ? "rgba(254, 202, 202, 0.5)" : "rgba(187, 247, 208, 0.5)"}`,
+                      boxShadow: `0 4px 16px ${budgetData.exceeded ? "rgba(220, 38, 38, 0.1)" : "rgba(22, 163, 74, 0.1)"}, 0 0 0 1px ${budgetData.exceeded ? "rgba(254, 202, 202, 0.3)" : "rgba(187, 247, 208, 0.3)"} inset`,
+                      transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-4px) scale(1.02)";
+                      e.currentTarget.style.boxShadow = `0 8px 24px ${budgetData.exceeded ? "rgba(220, 38, 38, 0.15)" : "rgba(22, 163, 74, 0.15)"}, 0 0 0 1px ${budgetData.exceeded ? "rgba(254, 202, 202, 0.4)" : "rgba(187, 247, 208, 0.4)"} inset`;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0) scale(1)";
+                      e.currentTarget.style.boxShadow = `0 4px 16px ${budgetData.exceeded ? "rgba(220, 38, 38, 0.1)" : "rgba(22, 163, 74, 0.1)"}, 0 0 0 1px ${budgetData.exceeded ? "rgba(254, 202, 202, 0.3)" : "rgba(187, 247, 208, 0.3)"} inset`;
+                    }}
+                    >
+                      <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "8px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         Remaining
                       </div>
-                      <div style={{ fontSize: "24px", fontWeight: "700", color: budgetData.exceeded ? "#dc2626" : "#16a34a" }}>
-                        ${budgetData.remaining?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "0.00"}
+                      <div style={{ fontSize: "clamp(22px, 4vw, 28px)", fontWeight: "800", color: budgetData.exceeded ? "#dc2626" : "#16a34a", letterSpacing: "-0.02em" }}>
+                        ${budgetData.remaining !== undefined && budgetData.remaining !== null ? budgetData.remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
                       </div>
                     </div>
                   </div>
 
                   {!isEnded && (
                     <div style={{
-                      padding: "20px",
-                      background: "#f8fafc",
-                      borderRadius: "12px",
-                      marginBottom: "24px",
-                      border: "1px solid #e2e8f0"
+                      padding: "clamp(24px, 4vw, 32px)",
+                      background: "rgba(255, 255, 255, 0.5)",
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
+                      borderRadius: "18px",
+                      marginBottom: "clamp(24px, 4vw, 32px)",
+                      border: "1px solid rgba(255, 255, 255, 0.4)",
+                      boxShadow: "0 4px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.02) inset"
                     }}>
-                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#475569", marginBottom: "16px" }}>
+                      <div style={{ fontSize: "clamp(15px, 2vw, 16px)", fontWeight: "700", color: "#1e293b", marginBottom: "clamp(16px, 3vw, 20px)", letterSpacing: "-0.01em" }}>
                         Add Expense
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr auto", gap: "12px", alignItems: "end" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "clamp(12px, 2vw, 16px)", alignItems: "end" }}>
                         <div>
                           <input
                             type="text"
@@ -1309,11 +1851,25 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
                             onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}
                             style={{
                               width: "100%",
-                              padding: "10px 14px",
-                              borderRadius: "8px",
-                              border: "1px solid #e2e8f0",
-                              fontSize: "14px",
-                              background: "white"
+                              padding: "clamp(12px, 2vw, 14px) clamp(16px, 3vw, 18px)",
+                              borderRadius: "12px",
+                              border: "1px solid rgba(226, 232, 240, 0.8)",
+                              fontSize: "clamp(13px, 2vw, 14px)",
+                              background: "rgba(255, 255, 255, 0.8)",
+                              backdropFilter: "blur(10px)",
+                              WebkitBackdropFilter: "blur(10px)",
+                              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                              outline: "none"
+                            }}
+                            onFocus={(e) => {
+                              e.currentTarget.style.borderColor = "#667eea";
+                              e.currentTarget.style.boxShadow = "0 0 0 3px rgba(102, 126, 234, 0.1)";
+                              e.currentTarget.style.background = "rgba(255, 255, 255, 0.95)";
+                            }}
+                            onBlur={(e) => {
+                              e.currentTarget.style.borderColor = "rgba(226, 232, 240, 0.8)";
+                              e.currentTarget.style.boxShadow = "none";
+                              e.currentTarget.style.background = "rgba(255, 255, 255, 0.8)";
                             }}
                           />
                         </div>
@@ -1325,11 +1881,25 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
                             onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })}
                             style={{
                               width: "100%",
-                              padding: "10px 14px",
-                              borderRadius: "8px",
-                              border: "1px solid #e2e8f0",
-                              fontSize: "14px",
-                              background: "white"
+                              padding: "clamp(12px, 2vw, 14px) clamp(16px, 3vw, 18px)",
+                              borderRadius: "12px",
+                              border: "1px solid rgba(226, 232, 240, 0.8)",
+                              fontSize: "clamp(13px, 2vw, 14px)",
+                              background: "rgba(255, 255, 255, 0.8)",
+                              backdropFilter: "blur(10px)",
+                              WebkitBackdropFilter: "blur(10px)",
+                              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                              outline: "none"
+                            }}
+                            onFocus={(e) => {
+                              e.currentTarget.style.borderColor = "#667eea";
+                              e.currentTarget.style.boxShadow = "0 0 0 3px rgba(102, 126, 234, 0.1)";
+                              e.currentTarget.style.background = "rgba(255, 255, 255, 0.95)";
+                            }}
+                            onBlur={(e) => {
+                              e.currentTarget.style.borderColor = "rgba(226, 232, 240, 0.8)";
+                              e.currentTarget.style.boxShadow = "none";
+                              e.currentTarget.style.background = "rgba(255, 255, 255, 0.8)";
                             }}
                           />
                         </div>
@@ -1343,26 +1913,50 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
                             step="0.01"
                             style={{
                               width: "100%",
-                              padding: "10px 14px",
-                              borderRadius: "8px",
-                              border: "1px solid #e2e8f0",
-                              fontSize: "14px",
-                              background: "white"
+                              padding: "clamp(12px, 2vw, 14px) clamp(16px, 3vw, 18px)",
+                              borderRadius: "12px",
+                              border: "1px solid rgba(226, 232, 240, 0.8)",
+                              fontSize: "clamp(13px, 2vw, 14px)",
+                              background: "rgba(255, 255, 255, 0.8)",
+                              backdropFilter: "blur(10px)",
+                              WebkitBackdropFilter: "blur(10px)",
+                              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                              outline: "none"
+                            }}
+                            onFocus={(e) => {
+                              e.currentTarget.style.borderColor = "#667eea";
+                              e.currentTarget.style.boxShadow = "0 0 0 3px rgba(102, 126, 234, 0.1)";
+                              e.currentTarget.style.background = "rgba(255, 255, 255, 0.95)";
+                            }}
+                            onBlur={(e) => {
+                              e.currentTarget.style.borderColor = "rgba(226, 232, 240, 0.8)";
+                              e.currentTarget.style.boxShadow = "none";
+                              e.currentTarget.style.background = "rgba(255, 255, 255, 0.8)";
                             }}
                           />
                         </div>
                         <button
                           onClick={addExpense}
                           style={{
-                            padding: "10px 20px",
-                            background: "#4f46e5",
+                            padding: "clamp(12px, 2vw, 14px) clamp(24px, 4vw, 28px)",
+                            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                             color: "white",
                             border: "none",
-                            borderRadius: "8px",
+                            borderRadius: "12px",
                             cursor: "pointer",
-                            fontSize: "14px",
+                            fontSize: "clamp(13px, 2vw, 14px)",
                             fontWeight: "600",
-                            whiteSpace: "nowrap"
+                            whiteSpace: "nowrap",
+                            transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                            boxShadow: "0 4px 16px rgba(102, 126, 234, 0.3)"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+                            e.currentTarget.style.boxShadow = "0 8px 24px rgba(102, 126, 234, 0.4)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = "translateY(0) scale(1)";
+                            e.currentTarget.style.boxShadow = "0 4px 16px rgba(102, 126, 234, 0.3)";
                           }}
                         >
                           Add
@@ -1373,58 +1967,75 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
 
                   {budgetItems.length > 0 && (
                     <div>
-                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#475569", marginBottom: "12px" }}>
+                      <div style={{ fontSize: "clamp(15px, 2vw, 16px)", fontWeight: "700", color: "#1e293b", marginBottom: "clamp(16px, 3vw, 20px)", letterSpacing: "-0.01em" }}>
                         Expenses
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "clamp(12px, 2vw, 14px)" }}>
                         {budgetItems.map((item) => (
                           <div
                             key={item.id}
                             style={{
-                              padding: "14px 16px",
-                              background: "#fafafa",
-                              borderRadius: "8px",
-                              border: "1px solid #e2e8f0",
+                              padding: "clamp(16px, 3vw, 20px)",
+                              background: "rgba(255, 255, 255, 0.6)",
+                              backdropFilter: "blur(10px)",
+                              WebkitBackdropFilter: "blur(10px)",
+                              borderRadius: "16px",
+                              border: "1px solid rgba(255, 255, 255, 0.4)",
                               display: "flex",
                               justifyContent: "space-between",
-                              alignItems: "center"
+                              alignItems: "center",
+                              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02) inset",
+                              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = "translateX(4px)";
+                              e.currentTarget.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(102, 126, 234, 0.1) inset";
+                              e.currentTarget.style.borderColor = "rgba(102, 126, 234, 0.3)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = "translateX(0)";
+                              e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02) inset";
+                              e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.4)";
                             }}
                           >
                             <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b", marginBottom: "2px" }}>
+                              <div style={{ fontSize: "clamp(14px, 2vw, 15px)", fontWeight: "700", color: "#1e293b", marginBottom: "4px" }}>
                                 {item.category}
                               </div>
                               {item.description && (
-                                <div style={{ fontSize: "12px", color: "#64748b" }}>
+                                <div style={{ fontSize: "clamp(12px, 2vw, 13px)", color: "#64748b", marginBottom: "4px" }}>
                                   {item.description}
                                 </div>
                               )}
-                              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px" }}>
+                              <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: "500" }}>
                                 {new Date(item.created_at).toLocaleDateString()}
                               </div>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                              <div style={{ fontSize: "16px", fontWeight: "700", color: "#1e293b" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "clamp(12px, 2vw, 16px)" }}>
+                              <div style={{ fontSize: "clamp(16px, 3vw, 18px)", fontWeight: "800", color: "#1e293b", letterSpacing: "-0.02em" }}>
                                 ${item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
                               {!isEnded && (
                                 <button
                                   onClick={() => deleteExpense(item.id)}
                                   style={{
-                                    padding: "6px 10px",
-                                    background: "transparent",
-                                    border: "none",
+                                    padding: "8px 12px",
+                                    background: "rgba(239, 68, 68, 0.1)",
+                                    border: "1px solid rgba(239, 68, 68, 0.2)",
                                     color: "#dc2626",
                                     cursor: "pointer",
-                                    fontSize: "12px",
-                                    borderRadius: "6px",
-                                    transition: "background 0.2s"
+                                    fontSize: "14px",
+                                    fontWeight: "600",
+                                    borderRadius: "10px",
+                                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
                                   }}
                                   onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = "#fee2e2";
+                                    e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)";
+                                    e.currentTarget.style.transform = "scale(1.1)";
                                   }}
                                   onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = "transparent";
+                                    e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)";
+                                    e.currentTarget.style.transform = "scale(1)";
                                   }}
                                 >
                                   ×
@@ -1456,7 +2067,11 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
 
       {showSlideshow && (
         <Slideshow 
-          photos={photos} 
+          photos={photos}
+          locations={allRouteLocations}
+          routeData={{ optimizedRoute, totalDistance, routeMode }}
+          token={token}
+          user={user}
           onClose={() => {
             setShowSlideshow(false);
             if (onBack) {
@@ -1476,49 +2091,111 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
       <div style={{
         position: "sticky",
         bottom: 0,
-        background: "white",
-        padding: "16px 24px",
-        marginTop: "24px",
-        borderRadius: "16px 16px 0 0",
-        boxShadow: "0 -2px 8px rgba(0,0,0,0.08)",
-        borderTop: "1px solid #f1f5f9",
+        left: 0,
+        right: 0,
+        background: "rgba(255, 255, 255, 0.95)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        padding: "20px 24px",
+        borderRadius: "24px 24px 0 0",
+        boxShadow: "0 -8px 32px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.5) inset",
+        borderTop: "1px solid rgba(255, 255, 255, 0.3)",
         display: "flex",
-        gap: "10px",
+        gap: "12px",
         justifyContent: "center",
         flexWrap: "wrap",
+        alignItems: "center",
         zIndex: 10
       }}>
-        <button
-          type="button"
-          onClick={(e) => handleSubmit(e)}
-          disabled={loading}
-          style={{
-            padding: "12px 32px",
-            background: loading ? "#cbd5e1" : "#4f46e5",
-            color: "white",
-            border: "none",
-            borderRadius: "10px",
-            cursor: loading ? "not-allowed" : "pointer",
-            fontSize: "14px",
-            fontWeight: "600",
-            transition: "all 0.2s ease",
-            minWidth: "160px"
-          }}
-          onMouseEnter={(e) => {
-            if (!loading) {
-              e.currentTarget.style.background = "#4338ca";
-              e.currentTarget.style.transform = "translateY(-1px)";
+        {!user?.is_premium && !currentTripId && (
+          <span style={{ 
+            fontSize: "12px", 
+            color: monthlyTripCount.trips_used >= monthlyTripCount.limit ? "#dc2626" : "#f59e0b", 
+            fontWeight: "600", 
+            background: monthlyTripCount.trips_used >= monthlyTripCount.limit 
+              ? "linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(239, 68, 68, 0.1) 100%)" 
+              : "linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%)", 
+            padding: "8px 14px", 
+            borderRadius: "12px",
+            border: `1px solid ${monthlyTripCount.trips_used >= monthlyTripCount.limit ? "rgba(220, 38, 38, 0.2)" : "rgba(245, 158, 11, 0.2)"}`,
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)"
+          }}>
+            {monthlyTripCount.trips_used >= monthlyTripCount.limit 
+              ? `Monthly limit reached (${monthlyTripCount.trips_used}/${monthlyTripCount.limit})`
+              : `Trips this month: ${monthlyTripCount.trips_used}/${monthlyTripCount.limit}`
             }
-          }}
-          onMouseLeave={(e) => {
-            if (!loading) {
-              e.currentTarget.style.background = "#4f46e5";
-              e.currentTarget.style.transform = "translateY(0)";
-            }
-          }}
-        >
-          {loading ? "Planning..." : currentTripId ? "💾 Update Trip" : (token ? "✨ Plan & Save Trip" : "🗺️ Plan Trip")}
-        </button>
+          </span>
+        )}
+        {currentTripId && isEnded ? (
+          <div
+            style={{
+              padding: "16px 40px",
+              background: "linear-gradient(135deg, #64748b 0%, #475569 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: "14px",
+              fontSize: "16px",
+              fontWeight: "700",
+              minWidth: "200px",
+              boxShadow: "0 4px 12px rgba(100, 116, 139, 0.3)",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              justifyContent: "center",
+              letterSpacing: "0.01em"
+            }}
+          >
+            <span style={{ fontSize: "20px" }}>✓</span>
+            Trip Ended
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => handleSubmit(e)}
+            disabled={loading}
+            style={{
+              padding: "16px 40px",
+              background: loading 
+                ? "linear-gradient(135deg, #94a3b8 0%, #64748b 100%)"
+                : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: "14px",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontSize: "16px",
+              fontWeight: "700",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              minWidth: "200px",
+              boxShadow: loading 
+                ? "0 4px 12px rgba(148, 163, 184, 0.3)"
+                : "0 8px 24px rgba(102, 126, 234, 0.4)",
+              transform: "scale(1)",
+              letterSpacing: "0.01em",
+              animation: loading ? "pulse 2s ease-in-out infinite" : "none",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              justifyContent: "center"
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.transform = "translateY(-3px) scale(1.02)";
+                e.currentTarget.style.boxShadow = "0 12px 32px rgba(102, 126, 234, 0.5)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!loading) {
+                e.currentTarget.style.transform = "translateY(0) scale(1)";
+                e.currentTarget.style.boxShadow = "0 8px 24px rgba(102, 126, 234, 0.4)";
+              }
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", fontSize: "20px" }}>
+              {loading ? "⏳" : currentTripId ? <SaveIcon size={20} color="white" /> : "✨"}
+            </span>
+            {loading ? "Planning..." : currentTripId ? "Update Trip" : (token ? "Plan & Save Trip" : "Plan Trip")}
+          </button>
+        )}
         {currentTripId && !isEnded && (
           <button
             type="button"
@@ -1551,29 +2228,77 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
             type="button"
             onClick={handleBackClick}
             style={{
-              padding: "12px 24px",
-              background: "white",
-              color: "#4f46e5",
-              border: "1px solid #4f46e5",
-              borderRadius: "10px",
+              padding: "clamp(14px, 2vw, 16px) clamp(24px, 3vw, 32px)",
+              background: "rgba(255, 255, 255, 0.8)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              color: "#667eea",
+              border: "1.5px solid rgba(102, 126, 234, 0.3)",
+              borderRadius: "16px",
               cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: "500",
-              transition: "all 0.2s ease"
+              fontSize: "clamp(14px, 2vw, 15px)",
+              fontWeight: "600",
+              transition: "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              boxShadow: "0 4px 16px rgba(102, 126, 234, 0.15), 0 0 0 0px rgba(102, 126, 234, 0.1) inset",
+              position: "relative",
+              overflow: "hidden"
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#4f46e5";
+              e.currentTarget.style.background = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
               e.currentTarget.style.color = "white";
+              e.currentTarget.style.transform = "translateX(-6px) translateY(-2px) scale(1.02)";
+              e.currentTarget.style.boxShadow = "0 12px 32px rgba(102, 126, 234, 0.4), 0 4px 16px rgba(118, 75, 162, 0.3)";
+              e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
+              const arrow = e.currentTarget.querySelector('.back-arrow');
+              if (arrow) {
+                arrow.style.transform = "translateX(-4px)";
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "white";
-              e.currentTarget.style.color = "#4f46e5";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.8)";
+              e.currentTarget.style.color = "#667eea";
+              e.currentTarget.style.transform = "translateX(0) translateY(0) scale(1)";
+              e.currentTarget.style.boxShadow = "0 4px 16px rgba(102, 126, 234, 0.15), 0 0 0 0px rgba(102, 126, 234, 0.1) inset";
+              e.currentTarget.style.borderColor = "rgba(102, 126, 234, 0.3)";
+              const arrow = e.currentTarget.querySelector('.back-arrow');
+              if (arrow) {
+                arrow.style.transform = "translateX(0)";
+              }
             }}
           >
-            ← Back to Trips
+            <span 
+              className="back-arrow"
+              style={{ 
+                fontSize: "18px",
+                display: "inline-block",
+                transition: "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                transform: "translateX(0)"
+              }}
+            >
+              ←
+            </span>
+            <span>Back to Trips</span>
           </button>
         )}
       </div>
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        onNavigate={() => {
+          setShowSuccessModal(false);
+          if (onBack) {
+            onBack();
+          }
+        }}
+        message={successMessage}
+        title="Success!"
+        showConfetti={true}
+      />
     </div>
   );
 }

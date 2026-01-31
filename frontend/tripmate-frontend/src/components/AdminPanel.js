@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import Footer from "./Footer";
 
 export default function AdminPanel({ token, user, onBack }) {
   const [users, setUsers] = useState([]);
@@ -19,6 +18,14 @@ export default function AdminPanel({ token, user, onBack }) {
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+    full_name: "",
+    account_type: "free"
+  });
 
   useEffect(() => {
     loadUsers();
@@ -111,6 +118,41 @@ export default function AdminPanel({ token, user, onBack }) {
     }
   };
 
+  const handleCreate = async () => {
+    if (!createForm.username || !createForm.email || !createForm.password) {
+      setError("Username, email, and password are required");
+      return;
+    }
+
+    if (createForm.password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+
+    try {
+      setError("");
+      setSuccess("");
+      await axios.post(
+        "http://127.0.0.1:5000/api/admin/users",
+        createForm,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSuccess("User created successfully");
+      setShowCreateModal(false);
+      setCreateForm({
+        username: "",
+        email: "",
+        password: "",
+        full_name: "",
+        account_type: "free"
+      });
+      loadUsers();
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to create user");
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString();
@@ -119,9 +161,11 @@ export default function AdminPanel({ token, user, onBack }) {
   return (
     <div style={{
       minHeight: "calc(100vh - 100px)",
-      background: "#f8fafc",
+      background: "transparent",
       display: "flex",
-      flexDirection: "column"
+      flexDirection: "column",
+      position: "relative",
+      zIndex: 1
     }}>
       <div style={{
         padding: "clamp(16px, 4vw, 24px)",
@@ -129,7 +173,9 @@ export default function AdminPanel({ token, user, onBack }) {
       }}>
         <div style={{
           maxWidth: "1400px",
-          margin: "0 auto"
+          margin: "0 auto",
+          background: "transparent",
+          padding: "clamp(24px, 4vw, 32px)"
         }}>
         {/* Header */}
         <div style={{
@@ -157,33 +203,65 @@ export default function AdminPanel({ token, user, onBack }) {
               Manage all user accounts
             </p>
           </div>
-          <button
-            onClick={onBack}
-            style={{
-              padding: "10px 20px",
-              background: "#f1f5f9",
-              color: "#475569",
-              border: "1px solid #e2e8f0",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: "500",
-              transition: "all 0.2s ease"
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#e2e8f0";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#f1f5f9";
-            }}
-          >
-            ← Back
-          </button>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              style={{
+                padding: "10px 20px",
+                background: "#10b981",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "500",
+                transition: "all 0.2s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#059669";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#10b981";
+              }}
+            >
+              <span>+</span>
+              <span>Create User</span>
+            </button>
+            <button
+              onClick={onBack}
+              style={{
+                padding: "10px 20px",
+                background: "#f1f5f9",
+                color: "#475569",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "500",
+                transition: "all 0.2s ease"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#e2e8f0";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#f1f5f9";
+              }}
+            >
+              ← Back
+            </button>
+          </div>
         </div>
 
         {/* Search and Filter */}
         <div style={{
-          background: "white",
+          background: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: "1px solid rgba(255, 255, 255, 0.3)",
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
           padding: "clamp(16px, 4vw, 24px)",
           borderRadius: "12px",
           boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
@@ -209,7 +287,7 @@ export default function AdminPanel({ token, user, onBack }) {
                 outline: "none",
                 transition: "border-color 0.2s ease"
               }}
-              onFocus={(e) => e.target.style.borderColor = "#4f46e5"}
+              onFocus={(e) => e.target.style.borderColor = "#667eea"}
               onBlur={(e) => e.target.style.borderColor = "#e2e8f0"}
             />
           </div>
@@ -217,7 +295,7 @@ export default function AdminPanel({ token, user, onBack }) {
             onClick={searchUsers}
             style={{
               padding: "10px 20px",
-              background: "#4f46e5",
+              background: "#667eea",
               color: "white",
               border: "none",
               borderRadius: "8px",
@@ -227,10 +305,10 @@ export default function AdminPanel({ token, user, onBack }) {
               transition: "all 0.2s ease"
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#4338ca";
+              e.currentTarget.style.background = "#5568d3";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#4f46e5";
+              e.currentTarget.style.background = "#667eea";
             }}
           >
             Search
@@ -286,7 +364,11 @@ export default function AdminPanel({ token, user, onBack }) {
 
         {/* Users Table */}
         <div style={{
-          background: "white",
+          background: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: "1px solid rgba(255, 255, 255, 0.3)",
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
           borderRadius: "12px",
           boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
           overflow: "hidden"
@@ -449,7 +531,14 @@ export default function AdminPanel({ token, user, onBack }) {
                                 <input
                                   type="checkbox"
                                   checked={editForm.is_admin}
-                                  onChange={(e) => setEditForm({ ...editForm, is_admin: e.target.checked })}
+                                  onChange={(e) => {
+                                    const isAdmin = e.target.checked;
+                                    setEditForm({ 
+                                      ...editForm, 
+                                      is_admin: isAdmin,
+                                      is_premium: isAdmin ? false : editForm.is_premium
+                                    });
+                                  }}
                                 />
                                 <span>Admin</span>
                               </label>
@@ -457,7 +546,14 @@ export default function AdminPanel({ token, user, onBack }) {
                                 <input
                                   type="checkbox"
                                   checked={editForm.is_premium}
-                                  onChange={(e) => setEditForm({ ...editForm, is_premium: e.target.checked })}
+                                  onChange={(e) => {
+                                    const isPremium = e.target.checked;
+                                    setEditForm({ 
+                                      ...editForm, 
+                                      is_premium: isPremium,
+                                      is_admin: isPremium ? false : editForm.is_admin
+                                    });
+                                  }}
                                 />
                                 <span>Premium</span>
                               </label>
@@ -546,7 +642,7 @@ export default function AdminPanel({ token, user, onBack }) {
                                 <span style={{
                                   padding: "4px 8px",
                                   background: "#e0e7ff",
-                                  color: "#4f46e5",
+                                  color: "#667eea",
                                   borderRadius: "6px",
                                   fontSize: "clamp(10px, 2vw, 11px)",
                                   fontWeight: "600"
@@ -601,7 +697,7 @@ export default function AdminPanel({ token, user, onBack }) {
                                 onClick={() => handleEdit(userItem)}
                                 style={{
                                   padding: "6px 12px",
-                                  background: "#4f46e5",
+                                  background: "#667eea",
                                   color: "white",
                                   border: "none",
                                   borderRadius: "6px",
@@ -611,10 +707,10 @@ export default function AdminPanel({ token, user, onBack }) {
                                   transition: "background 0.2s ease"
                                 }}
                                 onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = "#4338ca";
+                                  e.currentTarget.style.background = "#5568d3";
                                 }}
                                 onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = "#4f46e5";
+                                  e.currentTarget.style.background = "#667eea";
                                 }}
                               >
                                 Edit
@@ -658,8 +754,243 @@ export default function AdminPanel({ token, user, onBack }) {
         </div>
         </div>
       </div>
-      <Footer />
+
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0, 0, 0, 0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+          padding: "20px"
+        }}
+        onClick={() => setShowCreateModal(false)}
+        >
+          <div style={{
+            background: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: "1px solid rgba(255, 255, 255, 0.3)",
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
+            borderRadius: "16px",
+            padding: "clamp(20px, 4vw, 32px)",
+            maxWidth: "500px",
+            width: "100%",
+            maxHeight: "90vh",
+            overflowY: "auto",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+          }}
+          onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{
+              fontSize: "clamp(22px, 4vw, 28px)",
+              fontWeight: "700",
+              color: "#0f172a",
+              marginBottom: "24px"
+            }}>
+              Create New User
+            </h2>
+
+            {error && (
+              <div style={{
+                padding: "12px 16px",
+                background: "#fee2e2",
+                color: "#dc2626",
+                borderRadius: "8px",
+                marginBottom: "16px",
+                fontSize: "14px"
+              }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{
+                display: "block",
+                marginBottom: "8px",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#475569"
+              }}>
+                Username *
+              </label>
+              <input
+                type="text"
+                value={createForm.username}
+                onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  outline: "none"
+                }}
+                placeholder="Enter username"
+              />
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{
+                display: "block",
+                marginBottom: "8px",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#475569"
+              }}>
+                Email *
+              </label>
+              <input
+                type="email"
+                value={createForm.email}
+                onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  outline: "none"
+                }}
+                placeholder="Enter email"
+              />
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{
+                display: "block",
+                marginBottom: "8px",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#475569"
+              }}>
+                Password *
+              </label>
+              <input
+                type="password"
+                value={createForm.password}
+                onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  outline: "none"
+                }}
+                placeholder="Enter password (min 8 characters)"
+              />
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{
+                display: "block",
+                marginBottom: "8px",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#475569"
+              }}>
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={createForm.full_name}
+                onChange={(e) => setCreateForm({ ...createForm, full_name: e.target.value })}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  outline: "none"
+                }}
+                placeholder="Enter full name (optional)"
+              />
+            </div>
+
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{
+                display: "block",
+                marginBottom: "8px",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#475569"
+              }}>
+                Account Type *
+              </label>
+              <select
+                value={createForm.account_type}
+                onChange={(e) => setCreateForm({ ...createForm, account_type: e.target.value })}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  outline: "none",
+                  cursor: "pointer"
+                }}
+              >
+                <option value="free">Free</option>
+                <option value="premium">Premium</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setCreateForm({
+                    username: "",
+                    email: "",
+                    password: "",
+                    full_name: "",
+                    account_type: "free"
+                  });
+                  setError("");
+                }}
+                style={{
+                  padding: "10px 20px",
+                  background: "#f1f5f9",
+                  color: "#475569",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "500"
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                style={{
+                  padding: "10px 20px",
+                  background: "#10b981",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "500"
+                }}
+              >
+                Create User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
 

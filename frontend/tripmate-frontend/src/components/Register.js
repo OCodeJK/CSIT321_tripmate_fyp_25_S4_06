@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
-import Footer from "./Footer";
+import tripmateLogo from "../assets/logo/tripmate_logo.png";
 
 export default function Register({ onRegister, onSwitchToLogin, onBack }) {
   const [formData, setFormData] = useState({
@@ -26,8 +26,8 @@ export default function Register({ onRegister, onSwitchToLogin, onBack }) {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (formData.password.length < 8) {
+      setError("Password must be at least 8 characters");
       return;
     }
 
@@ -78,10 +78,11 @@ export default function Register({ onRegister, onSwitchToLogin, onBack }) {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      background: "#ffffff",
       display: "flex",
       flexDirection: "column",
-      paddingTop: "80px"
+      paddingTop: "80px",
+      position: "relative"
     }}>
       {/* TripMate Header - Fixed at top */}
       <nav style={{
@@ -90,7 +91,7 @@ export default function Register({ onRegister, onSwitchToLogin, onBack }) {
         left: 0,
         right: 0,
         background: "rgba(255, 255, 255, 0.95)",
-        padding: "16px 24px",
+        padding: "clamp(12px, 2vw, 16px) clamp(16px, 3vw, 24px)",
         boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
         display: "flex",
         justifyContent: "space-between",
@@ -99,12 +100,19 @@ export default function Register({ onRegister, onSwitchToLogin, onBack }) {
         backdropFilter: "blur(10px)"
       }}>
         <div style={{ 
-          fontSize: "24px", 
-          fontWeight: "800", 
-          color: "#4f46e5",
-          letterSpacing: "-0.02em"
+          display: "flex",
+          alignItems: "center",
+          gap: "12px"
         }}>
-          TripMate
+          <img 
+            src={tripmateLogo} 
+            alt="TripMate Logo" 
+            style={{
+              height: "40px",
+              width: "auto",
+              objectFit: "contain"
+            }}
+          />
         </div>
       </nav>
 
@@ -113,16 +121,16 @@ export default function Register({ onRegister, onSwitchToLogin, onBack }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "24px"
+        padding: "clamp(16px, 3vw, 24px)"
       }}>
         <div style={{
           width: "100%",
           maxWidth: "480px",
-          background: "rgba(255, 255, 255, 0.98)",
+          background: "white",
           borderRadius: "24px",
-          padding: "48px 40px",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
-          backdropFilter: "blur(10px)",
+          padding: "clamp(32px, 6vw, 48px) clamp(24px, 4vw, 40px)",
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05) inset",
+          border: "1px solid rgba(226, 232, 240, 0.5)",
           maxHeight: "90vh",
           overflowY: "auto"
         }}>
@@ -387,7 +395,6 @@ export default function Register({ onRegister, onSwitchToLogin, onBack }) {
         </div>
       </div>
       </div>
-      <Footer whiteText={true} />
     </div>
   );
 }

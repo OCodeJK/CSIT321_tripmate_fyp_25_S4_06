@@ -27,7 +27,7 @@ def get_account():
     try:
         cur.execute(
             """SELECT id, username, email, full_name, is_admin, is_premium,
-                      premium_expires_at, created_at
+                      premium_expires_at, created_at, notifications_enabled
                FROM users WHERE id = %s""",
             (user["user_id"],)
         )
@@ -45,7 +45,8 @@ def get_account():
                 "is_admin": row[4],
                 "is_premium": row[5],
                 "premium_expires_at": row[6].isoformat() if row[6] else None,
-                "created_at": row[7].isoformat()
+                "created_at": row[7].isoformat(),
+                "notifications_enabled": bool(row[8]) if len(row) > 8 and row[8] is not None else True
             }
         }), 200
 
@@ -82,6 +83,14 @@ def update_account():
             updates.append("full_name = %s")
             values.append(data["full_name"])
 
+        if "notifications_enabled" in data:
+            notifications_enabled = data["notifications_enabled"]
+            if isinstance(notifications_enabled, str):
+                notifications_enabled = notifications_enabled.lower() in ('true', '1', 'yes')
+            notifications_enabled_value = 1 if notifications_enabled else 0
+            updates.append("notifications_enabled = %s")
+            values.append(notifications_enabled_value)
+
         # Password change requires current password
         if "password" in data and data["password"]:
             current_password = data.get("current_password")
@@ -94,8 +103,8 @@ def update_account():
             if not db_user or not bcrypt.checkpw(current_password.encode("utf-8"), db_user[0].encode("utf-8")):
                 return jsonify({"error": "Current password is incorrect"}), 400
 
-            if len(data["password"]) < 6:
-                return jsonify({"error": "Password must be at least 6 characters"}), 400
+            if len(data["password"]) < 8:
+                return jsonify({"error": "Password must be at least 8 characters"}), 400
 
             password_hash = bcrypt.hashpw(data["password"].encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             updates.append("password_hash = %s")

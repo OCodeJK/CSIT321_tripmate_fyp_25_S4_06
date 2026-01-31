@@ -15,6 +15,48 @@ def get_user_from_token():
     payload = verify_token(token)
     return payload
 
+@trips_bp.route("/monthly-count", methods=["GET"])
+def get_monthly_trip_count():
+    """Get monthly trip count for free users"""
+    user = get_user_from_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    # Premium users have unlimited trips
+    if user.get("is_premium"):
+        return jsonify({
+            "trips_used": 0,
+            "limit": None,
+            "is_premium": True
+        }), 200
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Get current month start
+        now = datetime.now()
+        month_start = datetime(now.year, now.month, 1)
+        
+        # Count trips created this month
+        cur.execute(
+            "SELECT COUNT(*) FROM trips WHERE user_id = %s AND created_at >= %s",
+            (user["user_id"], month_start)
+        )
+        trips_this_month = cur.fetchone()[0]
+        
+        return jsonify({
+            "trips_used": trips_this_month,
+            "limit": 2,
+            "is_premium": False
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
 @trips_bp.route("/", methods=["GET"])
 def get_trips():
     """Get all trips for the current user"""

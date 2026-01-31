@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
+import { useFreeQuota } from "../hooks/useFreeQuota";
 
 export default function AIChat({ locations, photos, token, user, tripId }) {
   // Extract destination from locations (first is origin, rest are destinations)
@@ -25,74 +26,240 @@ export default function AIChat({ locations, photos, token, user, tripId }) {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [questionsUsed, setQuestionsUsed] = useState(0);
   const messagesEndRef = useRef(null);
+  const pendingMessageIdRef = useRef(null); // Track pending message to prevent double increments
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  // Use the free quota hook
+  const {
+    used: questionsUsed,
+    limit,
+    remaining,
+    isInitialized,
+    incrementOptimistic,
+    rollback,
+    updateFromServer,
+    syncFromServer
+  } = useFreeQuota(user?.id, user?.is_premium, 5);
 
+  // Removed auto-scroll to keep user at their current scroll position
+  // const scrollToBottom = () => {
+  //   messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // };
+
+  // useEffect(() => {
+  //   scrollToBottom();
+  // }, [messages]);
+
+  // Sync quota from backend on mount and when tripId changes
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!user?.is_premium && tripId && isInitialized) {
+      syncFromServer(async () => {
+        const res = await axios.get("http://127.0.0.1:5000/api/ai/chat/usage", {
+          params: { trip_id: tripId },
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        return res.data.questions_used;
+      });
+    }
+  }, [tripId, user?.is_premium, token, isInitialized, syncFromServer]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
-
-    const userMessage = { role: "user", content: input };
-      setMessages((prev) => [...prev, userMessage]);
-      setInput("");
-      setIsLoading(true);
-
-      try {
-        const res = await axios.post("http://127.0.0.1:5000/api/ai/chat", {
-          message: input,
-          locations: locations,
-          photos: photos,
-          trip_id: tripId
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        setMessages((prev) => [...prev, { role: "assistant", content: res.data.response }]);
-        // Increment question count for free users
-        if (!user?.is_premium) {
-          setQuestionsUsed(prev => prev + 1);
-        }
-    } catch (error) {
-      console.error("Error getting AI response:", error);
-      const errorMessage = error.response?.data?.error || error.response?.data?.message || "Sorry, I encountered an error. Please try again.";
+    
+    // Check if free user has reached limit
+    if (!user?.is_premium && questionsUsed >= limit) {
       setMessages((prev) => [...prev, {
         role: "assistant",
-        content: errorMessage
+        content: `Free plan allows ${limit} AI questions per trip. Upgrade to Premium for unlimited questions.`
       }]);
+      return;
+    }
+
+    // Generate unique message ID to prevent double increments
+    const clientMessageId = `${Date.now()}-${Math.random()}`;
+    
+    // Prevent double-send if same message ID
+    if (pendingMessageIdRef.current === clientMessageId) {
+      return;
+    }
+    pendingMessageIdRef.current = clientMessageId;
+
+    const userMessage = { role: "user", content: input };
+    setMessages((prev) => [...prev, userMessage]);
+    const messageToSend = input;
+    setInput("");
+    setIsLoading(true);
+
+    // Step 1: Optimistic increment (before API call)
+    if (!user?.is_premium) {
+      incrementOptimistic();
+    }
+
+    try {
+      // Send last 4 messages for context (2 user + 2 assistant)
+      const conversationHistory = messages.slice(-4).map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+      
+      const res = await axios.post("http://127.0.0.1:5000/api/ai/chat", {
+        message: messageToSend,
+        locations: locations,
+        photos: photos,
+        trip_id: tripId,
+        conversation_history: conversationHistory
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Step 2: On success, update from server response (backend is source of truth)
+      if (res.status === 200) {
+        setMessages((prev) => [...prev, { role: "assistant", content: res.data.response }]);
+        
+        if (!user?.is_premium) {
+          console.log("[AIChat] Server response:", res.data);
+          console.log("[AIChat] questions_used from server:", res.data.questions_used, "type:", typeof res.data.questions_used);
+          
+          // Always sync from backend after successful response to ensure accuracy
+          // This is more reliable than trusting the response value which might be 0 if there was an error
+          setTimeout(async () => {
+            try {
+              const usageRes = await axios.get("http://127.0.0.1:5000/api/ai/chat/usage", {
+                params: { trip_id: tripId },
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              const serverCount = usageRes.data.questions_used;
+              console.log("[AIChat] Synced from usage endpoint:", serverCount);
+              if (serverCount !== undefined && serverCount !== null) {
+                updateFromServer(serverCount);
+              }
+            } catch (syncError) {
+              console.error("[AIChat] Error syncing from usage endpoint:", syncError);
+              // Only use response value if it's not 0 (0 might indicate an error)
+              if (res.data.questions_used !== undefined && res.data.questions_used !== null && res.data.questions_used > 0) {
+                updateFromServer(res.data.questions_used);
+              } else {
+                console.warn("[AIChat] Response has invalid questions_used value, keeping current count");
+              }
+            }
+          }, 200); // Small delay to ensure backend has committed
+          
+          // Update immediately from response if it's a valid non-zero value
+          // (Don't update if it's 0, as that might indicate an error - wait for sync instead)
+          if (res.data.questions_used !== undefined && res.data.questions_used !== null && res.data.questions_used > 0) {
+            updateFromServer(res.data.questions_used);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error getting AI response:", error);
+      const errorResponse = error.response;
+      
+      // Step 3: On error, rollback the optimistic increment
+      if (!user?.is_premium) {
+        rollback();
+      }
+      
+      // Check if it's a limit reached error (403)
+      if (errorResponse?.status === 403) {
+        const errorMessage = errorResponse?.data?.message || errorResponse?.data?.error || "AI chat limit reached";
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: errorMessage
+        }]);
+        // Update from server if available (might be at limit)
+        if (errorResponse?.data?.questions_used !== undefined) {
+          updateFromServer(errorResponse.data.questions_used);
+        }
+        setInput("");
+      } else {
+        // Other errors - show error message
+        const errorMessage = errorResponse?.data?.error || errorResponse?.data?.message || "Sorry, I encountered an error. Please try again.";
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: errorMessage
+        }]);
+      }
     } finally {
       setIsLoading(false);
+      pendingMessageIdRef.current = null; // Clear pending message ID
     }
   };
 
   return (
     <div style={{
-      background: "white",
-      borderRadius: "12px",
-      padding: "24px",
-      marginTop: "24px",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+      background: "rgba(255, 255, 255, 0.7)",
+      backdropFilter: "blur(20px)",
+      WebkitBackdropFilter: "blur(20px)",
+      borderRadius: "24px",
+      padding: "clamp(32px, 5vw, 48px)",
+      marginTop: "clamp(24px, 4vw, 32px)",
+      boxShadow: "0 20px 60px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5) inset, 0 4px 16px rgba(0, 0, 0, 0.04)",
+      border: "1px solid rgba(255, 255, 255, 0.3)",
       display: "flex",
       flexDirection: "column",
-      height: "500px"
+      height: "clamp(500px, 60vh, 600px)",
+      transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)"
     }}>
-      <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-        <h3 style={{ fontSize: "18px", fontWeight: "600", margin: 0 }}>
-          🤖 Ask About Your Trip
-        </h3>
+      <div style={{ marginBottom: "clamp(20px, 3vw, 24px)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{
+            width: "48px",
+            height: "48px",
+            borderRadius: "14px",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 8px 24px rgba(102, 126, 234, 0.3)"
+          }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 8V4H8"/>
+              <rect width="16" height="12" x="4" y="8" rx="2"/>
+              <path d="M2 14h2"/>
+              <path d="M20 14h2"/>
+              <path d="M15 13v2"/>
+              <path d="M9 13v2"/>
+            </svg>
+          </div>
+          <h3 style={{ 
+            fontSize: "clamp(20px, 4vw, 24px)", 
+            fontWeight: "700", 
+            margin: 0,
+            background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            letterSpacing: "-0.02em"
+          }}>
+            Ask About Your Trip
+          </h3>
+        </div>
         {!user?.is_premium && tripId && (
-          <span style={{ fontSize: "12px", color: "#f59e0b", fontWeight: "500", background: "#fef3c7", padding: "4px 8px", borderRadius: "6px" }}>
-            Free: {questionsUsed}/5 questions used
+          <span style={{ 
+            fontSize: "12px", 
+            color: "#f59e0b", 
+            fontWeight: "600", 
+            background: "linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%)", 
+            padding: "8px 14px", 
+            borderRadius: "12px",
+            border: "1px solid rgba(245, 158, 11, 0.2)",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)"
+          }}>
+            Free: {questionsUsed}/{limit} questions used
           </span>
         )}
         {user?.is_premium && (
-          <span style={{ fontSize: "12px", color: "#4f46e5", fontWeight: "500", background: "#e0e7ff", padding: "4px 8px", borderRadius: "6px" }}>
+          <span style={{ 
+            fontSize: "12px", 
+            color: "#667eea", 
+            fontWeight: "600", 
+            background: "linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)", 
+            padding: "8px 14px", 
+            borderRadius: "12px",
+            border: "1px solid rgba(102, 126, 234, 0.2)",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)"
+          }}>
             Premium: Unlimited
           </span>
         )}
@@ -101,29 +268,56 @@ export default function AIChat({ locations, photos, token, user, tripId }) {
       <div style={{
         flex: 1,
         overflowY: "auto",
-        marginBottom: "16px",
-        padding: "12px",
-        background: "#f8fafc",
-        borderRadius: "8px"
+        marginBottom: "clamp(16px, 3vw, 20px)",
+        padding: "clamp(16px, 3vw, 20px)",
+        background: "rgba(248, 250, 252, 0.6)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        borderRadius: "18px",
+        border: "1px solid rgba(255, 255, 255, 0.4)",
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04) inset"
       }}>
         {messages.map((msg, idx) => (
           <div
             key={idx}
             style={{
-              marginBottom: "12px",
+              marginBottom: "clamp(12px, 2vw, 16px)",
               textAlign: msg.role === "user" ? "right" : "left"
             }}
           >
             <div
               style={{
                 display: "inline-block",
-                padding: "10px 16px",
-                borderRadius: "12px",
-                background: msg.role === "user" ? "#4f46e5" : "#e2e8f0",
-                color: msg.role === "user" ? "white" : "#2d3748",
-                maxWidth: "70%",
-                fontSize: "14px",
-                lineHeight: "1.5"
+                padding: "clamp(12px, 2vw, 14px) clamp(16px, 3vw, 20px)",
+                borderRadius: "18px",
+                background: msg.role === "user" 
+                  ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+                  : "rgba(255, 255, 255, 0.8)",
+                backdropFilter: msg.role === "assistant" ? "blur(10px)" : "none",
+                WebkitBackdropFilter: msg.role === "assistant" ? "blur(10px)" : "none",
+                color: msg.role === "user" ? "white" : "#1e293b",
+                maxWidth: "75%",
+                fontSize: "clamp(13px, 2vw, 14px)",
+                lineHeight: "1.6",
+                whiteSpace: "pre-wrap",
+                boxShadow: msg.role === "user" 
+                  ? "0 4px 16px rgba(102, 126, 234, 0.3)" 
+                  : "0 2px 8px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.02) inset",
+                border: msg.role === "assistant" ? "1px solid rgba(255, 255, 255, 0.4)" : "none",
+                fontWeight: msg.role === "user" ? "500" : "400",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+              }}
+              onMouseEnter={(e) => {
+                if (msg.role === "assistant") {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(102, 126, 234, 0.1) inset";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (msg.role === "assistant") {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.02) inset";
+                }
               }}
             >
               {msg.content}
@@ -131,40 +325,85 @@ export default function AIChat({ locations, photos, token, user, tripId }) {
           </div>
         ))}
         {isLoading && (
-          <div style={{ textAlign: "left", color: "#64748b", fontSize: "14px" }}>
+          <div style={{ 
+            textAlign: "left", 
+            color: "#64748b", 
+            fontSize: "clamp(13px, 2vw, 14px)",
+            fontStyle: "italic",
+            padding: "12px 16px",
+            background: "rgba(255, 255, 255, 0.6)",
+            borderRadius: "12px",
+            display: "inline-block"
+          }}>
             Thinking...
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      <div style={{ display: "flex", gap: "8px" }}>
+      <div style={{ display: "flex", gap: "clamp(10px, 2vw, 12px)" }}>
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Ask about your trip..."
+          placeholder={!user?.is_premium && questionsUsed >= limit ? "Limit reached - Upgrade to Premium" : "Ask about your trip..."}
+          disabled={!user?.is_premium && questionsUsed >= limit}
           style={{
             flex: 1,
-            padding: "12px 16px",
-            borderRadius: "8px",
-            border: "1px solid #e2e8f0",
-            fontSize: "14px"
+            padding: "clamp(12px, 2vw, 14px) clamp(16px, 3vw, 20px)",
+            borderRadius: "14px",
+            border: "1px solid rgba(226, 232, 240, 0.8)",
+            fontSize: "clamp(13px, 2vw, 14px)",
+            background: "rgba(255, 255, 255, 0.8)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            outline: "none"
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = "#667eea";
+            e.currentTarget.style.boxShadow = "0 0 0 3px rgba(102, 126, 234, 0.1)";
+            e.currentTarget.style.background = "rgba(255, 255, 255, 0.95)";
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = "rgba(226, 232, 240, 0.8)";
+            e.currentTarget.style.boxShadow = "none";
+            e.currentTarget.style.background = "rgba(255, 255, 255, 0.8)";
           }}
         />
         <button
           onClick={handleSend}
-          disabled={isLoading}
+          disabled={isLoading || (!user?.is_premium && questionsUsed >= limit)}
           style={{
-            padding: "12px 24px",
-            background: "#4f46e5",
+            padding: "clamp(12px, 2vw, 14px) clamp(24px, 4vw, 28px)",
+            background: (isLoading || (!user?.is_premium && questionsUsed >= limit))
+              ? "linear-gradient(135deg, #94a3b8 0%, #64748b 100%)" 
+              : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
             color: "white",
             border: "none",
-            borderRadius: "8px",
-            cursor: isLoading ? "not-allowed" : "pointer",
-            fontSize: "14px",
-            fontWeight: "500"
+            borderRadius: "14px",
+            cursor: (isLoading || (!user?.is_premium && questionsUsed >= limit)) ? "not-allowed" : "pointer",
+            opacity: (!user?.is_premium && questionsUsed >= limit) ? 0.6 : 1,
+            fontSize: "clamp(13px, 2vw, 14px)",
+            fontWeight: "600",
+            transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+            boxShadow: isLoading 
+              ? "0 4px 12px rgba(148, 163, 184, 0.3)" 
+              : "0 4px 16px rgba(102, 126, 234, 0.3)",
+            whiteSpace: "nowrap"
+          }}
+          onMouseEnter={(e) => {
+            if (!isLoading) {
+              e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+              e.currentTarget.style.boxShadow = "0 8px 24px rgba(102, 126, 234, 0.4)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isLoading) {
+              e.currentTarget.style.transform = "translateY(0) scale(1)";
+              e.currentTarget.style.boxShadow = "0 4px 16px rgba(102, 126, 234, 0.3)";
+            }
           }}
         >
           Send

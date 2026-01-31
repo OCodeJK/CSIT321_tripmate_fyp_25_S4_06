@@ -48,6 +48,10 @@ CREATE TABLE IF NOT EXISTS photos (
     filename VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
     file_size BIGINT DEFAULT 0,
+    media_type ENUM('image', 'video') DEFAULT 'image',
+    latitude DECIMAL(10, 8) NULL,
+    longitude DECIMAL(11, 8) NULL,
+    taken_at TIMESTAMP NULL,
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE
 );

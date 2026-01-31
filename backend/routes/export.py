@@ -12,13 +12,13 @@ export_bp = Blueprint("export_bp", __name__)
 # MoviePy 2.x changed the import structure
 try:
     # Try new import path first (MoviePy 2.x)
-    from moviepy import ImageClip, concatenate_videoclips, TextClip, CompositeVideoClip
+    from moviepy import ImageClip, concatenate_videoclips, TextClip, CompositeVideoClip, VideoFileClip
     MOVIEPY_AVAILABLE = True
     print("MoviePy successfully imported (direct import)")
 except ImportError:
     try:
         # Fallback to old import path (MoviePy 1.x)
-        from moviepy.editor import ImageClip, concatenate_videoclips, TextClip, CompositeVideoClip
+        from moviepy.editor import ImageClip, concatenate_videoclips, TextClip, CompositeVideoClip, VideoFileClip
         MOVIEPY_AVAILABLE = True
         print("MoviePy successfully imported (editor import)")
     except ImportError as e:
@@ -30,8 +30,9 @@ except Exception as e:
 
 @export_bp.route("/video", methods=["POST"])
 def export_video():
-    # Check if user is premium
+    # Check if user is premium or admin (check database for current status)
     from routes.auth import verify_token
+    from db import get_db_connection
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
     if not token:
         return jsonify({"error": "Unauthorized"}), 401
@@ -40,8 +41,26 @@ def export_video():
     if not payload:
         return jsonify({"error": "Invalid token"}), 401
     
-    if not payload.get("is_premium"):
-        return jsonify({"error": "Video export is only available for premium users"}), 403
+    # Check database for current premium/admin status (not just from token)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT is_premium, is_admin FROM users WHERE id = %s",
+            (payload["user_id"],)
+        )
+        user = cur.fetchone()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        is_premium = bool(user[0]) if user[0] else False
+        is_admin = bool(user[1]) if len(user) > 1 and user[1] else False
+        
+        if not is_premium and not is_admin:
+            return jsonify({"error": "Video export is only available for premium users or admins"}), 403
+    finally:
+        cur.close()
+        conn.close()
 
     data = request.get_json()
     locations = data.get("locations", [])
@@ -49,7 +68,7 @@ def export_video():
     route_data = data.get("routeData", {})
 
     if not photos or not any(photos.values()):
-        return jsonify({"error": "No photos to export"}), 400
+        return jsonify({"error": "No photos or videos to export"}), 400
 
     # Collect all photos in order
     all_photos = []
@@ -109,7 +128,7 @@ def create_simple_video(photos, locations, route_data):
             continue
 
     if not frames:
-        return jsonify({"error": "Could not process any photos"}), 500
+        return jsonify({"error": "Could not process any photos or videos"}), 500
 
     # Save as a simple animated GIF (since we can't create MP4 without moviepy)
     output = io.BytesIO()
@@ -169,9 +188,61 @@ def create_moviepy_video(photos, locations, route_data):
                 photo_path = os.path.join(UPLOAD_FOLDER, photo_filename)
                 
                 if not os.path.exists(photo_path):
-                    print(f"Photo not found: {photo_path}")
+                    print(f"File not found: {photo_path}")
                     continue
                 
+                # Check if file is a video or image
+                file_ext = os.path.splitext(photo_filename)[1].lower()
+                is_video = file_ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+                
+                if is_video:
+                    # Handle video file
+                    video_clip = None
+                    try:
+                        # Load video clip
+                        video_clip = VideoFileClip(photo_path)
+                        
+                        # Resize video to 1920x1080 maintaining aspect ratio
+                        video_clip = video_clip.resize((1920, 1080))
+                        
+                        # Limit video duration to 5 seconds max
+                        if video_clip.duration > 5:
+                            video_clip = video_clip.subclip(0, 5)
+                        
+                        # Add text overlay with location name
+                        location_name = photo_info.get("location", "Trip Video")
+                        try:
+                            txt_clip = TextClip(
+                                location_name,
+                                fontsize=70,
+                                color="white",
+                                font="Arial-Bold",
+                                stroke_color="black",
+                                stroke_width=3,
+                                size=(1800, None),
+                                method="caption"
+                            ).set_position(("center", 50)).set_duration(video_clip.duration)
+                            
+                            video_clip = CompositeVideoClip([video_clip, txt_clip])
+                        except:
+                            # If TextClip fails, just use the video without text
+                            pass
+                        
+                        clips.append(video_clip)
+                        continue
+                    except Exception as e:
+                        print(f"Error processing video {photo_info.get('filename', 'unknown')}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        # Try to close the clip if it was opened
+                        if video_clip is not None:
+                            try:
+                                video_clip.close()
+                            except:
+                                pass
+                        continue
+                
+                # Handle image file
                 # Load and resize image
                 img = Image.open(photo_path)
                 # Resize to 1920x1080 maintaining aspect ratio
@@ -224,7 +295,7 @@ def create_moviepy_video(photos, locations, route_data):
         
         if not clips:
             from flask import make_response
-            response = make_response(jsonify({"error": "Could not process any photos"}), 500)
+            response = make_response(jsonify({"error": "Could not process any photos or videos"}), 500)
             response.headers['Content-Type'] = 'application/json'
             return response
         

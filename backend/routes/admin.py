@@ -59,12 +59,12 @@ def get_users():
                 "username": row[1],
                 "email": row[2],
                 "full_name": row[3],
-                "is_admin": row[4],
-                "is_premium": row[5],
+                "is_admin": bool(row[4]),
+                "is_premium": bool(row[5]),
                 "premium_expires_at": row[6].isoformat() if row[6] else None,
-                "is_suspended": row[7] if len(row) > 7 else False,
-                "suspended_reason": row[8] if len(row) > 8 else None,
-                "created_at": row[9].isoformat() if len(row) > 9 else row[7].isoformat()
+                "is_suspended": bool(row[7]) if len(row) > 7 else False,
+                "suspended_reason": row[8] if len(row) > 8 and row[8] else None,
+                "created_at": row[9].isoformat() if len(row) > 9 and row[9] else None
             })
 
         return jsonify({"users": users}), 200
@@ -91,6 +91,9 @@ def create_user():
 
     if not username or not email or not password:
         return jsonify({"error": "Username, email, and password are required"}), 400
+
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -171,6 +174,7 @@ def update_user(user_id):
         if "full_name" in data:
             updates.append("full_name = %s")
             values.append(data["full_name"])
+        # Ensure admin and premium are mutually exclusive
         if "is_admin" in data:
             # Convert boolean to 0/1 for MySQL (handle both bool and string)
             is_admin_bool = data["is_admin"]
@@ -180,12 +184,21 @@ def update_user(user_id):
             
             updates.append("is_admin = %s")
             values.append(is_admin_value)
+            
+            # If setting as admin, ensure premium is false
+            if is_admin_bool:
+                updates.append("is_premium = 0")
+                updates.append("premium_expires_at = NULL")
         if "is_premium" in data:
             # Convert boolean to 0/1 for MySQL (handle both bool and string)
             is_premium_bool = data["is_premium"]
             if isinstance(is_premium_bool, str):
                 is_premium_bool = is_premium_bool.lower() in ('true', '1', 'yes')
             is_premium_value = 1 if is_premium_bool else 0
+            
+            # If setting as premium, ensure admin is false
+            if is_premium_bool:
+                updates.append("is_admin = 0")
             
             updates.append("is_premium = %s")
             values.append(is_premium_value)
@@ -292,11 +305,11 @@ def search_users():
                 "username": row[1],
                 "email": row[2],
                 "full_name": row[3],
-                "is_admin": row[4],
-                "is_premium": row[5],
-                "is_suspended": row[6] if len(row) > 6 else False,
-                "suspended_reason": row[7] if len(row) > 7 else None,
-                "created_at": row[8].isoformat() if len(row) > 8 else row[6].isoformat()
+                "is_admin": bool(row[4]),
+                "is_premium": bool(row[5]),
+                "is_suspended": bool(row[6]) if len(row) > 6 else False,
+                "suspended_reason": row[7] if len(row) > 7 and row[7] else None,
+                "created_at": row[8].isoformat() if len(row) > 8 and row[8] else None
             })
 
         return jsonify({"users": users}), 200
