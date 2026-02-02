@@ -224,10 +224,6 @@ out
 .nuxt
 dist
 
-# Gatsby files
-.cache/
-public
-
 # Vue.js
 .vuepress/dist
 
