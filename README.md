@@ -403,6 +403,111 @@ After running `python create_admin.py`:
 
 ---
 
+## Deploy to Railway
+
+This repo is set up for a clean GitHub-to-Railway deployment. You'll create **two Railway services** (backend + frontend) and a **MySQL plugin**.
+
+### 1. Push to GitHub
+
+Make sure all changes are committed and pushed to your GitHub repo.
+
+### 2. Create a Railway project
+
+1. Go to [railway.app](https://railway.app) and create a **New Project**.
+2. Choose **Deploy from GitHub Repo** and select your repository.
+
+### 3. Add MySQL
+
+1. In your Railway project, click **+ New** > **Database** > **MySQL**.
+2. Railway will provision a MySQL instance and set `DATABASE_URL` / `MYSQL_URL` automatically.
+
+### 4. Deploy the Backend
+
+1. Click **+ New** > **GitHub Repo** > select this repo again.
+2. In the service **Settings**:
+   - Set **Root Directory** to `backend`
+   - Set **Start Command** to: `gunicorn -w 2 -b 0.0.0.0:$PORT app:app`
+3. In **Variables**, add:
+   | Variable | Value |
+   |---|---|
+   | `DATABASE_URL` | (reference the MySQL plugin variable `${{MySQL.DATABASE_URL}}`) |
+   | `FRONTEND_URL` | Your frontend Railway URL, e.g. `https://tripmate-frontend-production.up.railway.app` |
+   | `JWT_SECRET` | A long random string |
+   | `OPENAI_API_KEY` | *(optional)* Your OpenAI key |
+   | `OPENWEATHER_API_KEY` | *(optional)* Your OpenWeatherMap key |
+4. Railway will auto-detect `requirements.txt` and deploy.
+
+### 5. Initialize the Database
+
+Open the Railway MySQL shell (or connect via a local client) and run `backend/schema_mysql.sql` to create the tables. Then optionally run `python create_admin.py` (set `DATABASE_URL` first).
+
+### 6. Deploy the Frontend
+
+1. Click **+ New** > **GitHub Repo** > select this repo again.
+2. In **Settings**:
+   - Set **Root Directory** to `frontend/tripmate-frontend`
+   - Set **Build Command** to: `npm install && npm run build`
+   - Set **Start Command** to: `npx serve -s build -l $PORT`
+3. In **Variables**, add:
+   | Variable | Value |
+   |---|---|
+   | `REACT_APP_API_URL` | Your backend Railway URL, e.g. `https://tripmate-backend-production.up.railway.app` |
+   | `REACT_APP_GOOGLE_MAPS_API_KEY` | Your Google Maps API key |
+
+> **Note:** CRA bakes env vars into the build at build time, so set `REACT_APP_*` vars *before* the build runs. If you change them later, trigger a redeploy.
+
+### 7. Verify
+
+- Visit your backend URL at `/health` — you should see `{"status": "healthy", "database": "connected"}`.
+- Visit your frontend URL — the app should load and connect to the backend.
+
+### Environment Variables Reference
+
+See `backend/.env.example` and `frontend/tripmate-frontend/.env.example` for all available variables.
+
+---
+
+## Local Production-Like Test
+
+```bash
+# 1. Create and activate a virtual environment
+cd backend
+python -m venv venv
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+# source venv/bin/activate
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Set environment variables (PowerShell example)
+$env:DB_HOST="localhost"
+$env:DB_PORT="3306"
+$env:DB_NAME="tripmate_db"
+$env:DB_USER="root"
+$env:DB_PASSWORD="your_password"
+$env:FRONTEND_URL="http://localhost:3000"
+$env:JWT_SECRET="test-secret"
+$env:PORT="5000"
+
+# 4. Run with gunicorn (Linux/Mac only; on Windows use waitress or run app.py directly)
+gunicorn -w 2 -b 0.0.0.0:5000 app:app
+
+# 5. Test health endpoint
+curl http://localhost:5000/health
+```
+
+For the frontend:
+```bash
+cd frontend/tripmate-frontend
+cp .env.example .env   # then edit .env with your values
+npm install
+npm start
+```
+
+---
+
 ## Contributors
 
 CSIT321 TripMate FYP Team - S4_06
