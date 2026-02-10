@@ -199,15 +199,21 @@ def create_moviepy_video(photos, locations, route_data):
                     # Handle video file
                     video_clip = None
                     try:
-                        # Load video clip
-                        video_clip = VideoFileClip(photo_path)
+                        # Load video clip (without audio to avoid concatenation issues with image clips)
+                        video_clip = VideoFileClip(photo_path, audio=False)
                         
-                        # Resize video to 1920x1080 maintaining aspect ratio
-                        video_clip = video_clip.resize((1920, 1080))
+                        # Resize video to 1920x1080 — handle both MoviePy 1.x and 2.x API
+                        try:
+                            video_clip = video_clip.resized((1920, 1080))
+                        except AttributeError:
+                            video_clip = video_clip.resize((1920, 1080))
                         
                         # Limit video duration to 5 seconds max
                         if video_clip.duration > 5:
-                            video_clip = video_clip.subclip(0, 5)
+                            try:
+                                video_clip = video_clip.subclipped(0, 5)
+                            except AttributeError:
+                                video_clip = video_clip.subclip(0, 5)
                         
                         # Add text overlay with location name
                         location_name = photo_info.get("location", "Trip Video")
@@ -221,7 +227,11 @@ def create_moviepy_video(photos, locations, route_data):
                                 stroke_width=3,
                                 size=(1800, None),
                                 method="caption"
-                            ).set_position(("center", 50)).set_duration(video_clip.duration)
+                            )
+                            try:
+                                txt_clip = txt_clip.with_position(("center", 50)).with_duration(video_clip.duration)
+                            except AttributeError:
+                                txt_clip = txt_clip.set_position(("center", 50)).set_duration(video_clip.duration)
                             
                             video_clip = CompositeVideoClip([video_clip, txt_clip])
                         except:
@@ -275,7 +285,11 @@ def create_moviepy_video(photos, locations, route_data):
                         stroke_width=3,
                         size=(1800, None),
                         method="caption"
-                    ).set_position(("center", 50)).set_duration(3)
+                    )
+                    try:
+                        txt_clip = txt_clip.with_position(("center", 50)).with_duration(3)
+                    except AttributeError:
+                        txt_clip = txt_clip.set_position(("center", 50)).set_duration(3)
                 except:
                     # Fallback if TextClip fails
                     txt_clip = None

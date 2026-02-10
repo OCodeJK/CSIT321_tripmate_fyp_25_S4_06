@@ -224,6 +224,10 @@ out
 .nuxt
 dist
 
+# Gatsby files
+.cache/
+public
+
 # Vue.js
 .vuepress/dist
 
@@ -253,10 +257,12 @@ dist
 # User-Generated Content
 # ============================================
 
-# Uploaded photos and user files
-backend/uploads/
-backend/uploads/**/*
+# Uploaded photos and user files – keep directory structure via .gitkeep
+backend/uploads/*
 !backend/uploads/.gitkeep
+!backend/uploads/photos/
+backend/uploads/photos/*
+!backend/uploads/photos/.gitkeep
 
 # Generated exports
 backend/exports/

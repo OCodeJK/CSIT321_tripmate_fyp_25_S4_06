@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import API_URL from "../config";
 
 export default function AdminPanel({ token, user, onBack }) {
   const [users, setUsers] = useState([]);
@@ -35,7 +36,7 @@ export default function AdminPanel({ token, user, onBack }) {
     try {
       setLoading(true);
       const params = filterType !== "all" ? { type: filterType } : {};
-      const res = await axios.get("http://127.0.0.1:5000/api/admin/users", {
+      const res = await axios.get(`${API_URL}/api/admin/users`, {
         headers: { Authorization: `Bearer ${token}` },
         params
       });
@@ -54,7 +55,7 @@ export default function AdminPanel({ token, user, onBack }) {
     }
     try {
       setLoading(true);
-      const res = await axios.get("http://127.0.0.1:5000/api/admin/users/search", {
+      const res = await axios.get(`${API_URL}/api/admin/users/search`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { q: searchQuery }
       });
@@ -86,7 +87,7 @@ export default function AdminPanel({ token, user, onBack }) {
       setError("");
       setSuccess("");
       await axios.put(
-        `http://127.0.0.1:5000/api/admin/users/${editingUser}`,
+        `${API_URL}/api/admin/users/${editingUser}`,
         editForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -107,7 +108,7 @@ export default function AdminPanel({ token, user, onBack }) {
       setError("");
       setSuccess("");
       await axios.delete(
-        `http://127.0.0.1:5000/api/admin/users/${userId}`,
+        `${API_URL}/api/admin/users/${userId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSuccess("User deleted successfully");
@@ -133,7 +134,7 @@ export default function AdminPanel({ token, user, onBack }) {
       setError("");
       setSuccess("");
       await axios.post(
-        "http://127.0.0.1:5000/api/admin/users",
+        `${API_URL}/api/admin/users`,
         createForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -27,7 +27,7 @@ def get_account():
     try:
         cur.execute(
             """SELECT id, username, email, full_name, is_admin, is_premium,
-                      premium_expires_at, created_at, notifications_enabled
+                      premium_expires_at, created_at
                FROM users WHERE id = %s""",
             (user["user_id"],)
         )
@@ -46,7 +46,7 @@ def get_account():
                 "is_premium": row[5],
                 "premium_expires_at": row[6].isoformat() if row[6] else None,
                 "created_at": row[7].isoformat(),
-                "notifications_enabled": bool(row[8]) if len(row) > 8 and row[8] is not None else True
+                "notifications_enabled": True  # Default to True since column doesn't exist in schema
             }
         }), 200
 
@@ -83,13 +83,16 @@ def update_account():
             updates.append("full_name = %s")
             values.append(data["full_name"])
 
-        if "notifications_enabled" in data:
-            notifications_enabled = data["notifications_enabled"]
-            if isinstance(notifications_enabled, str):
-                notifications_enabled = notifications_enabled.lower() in ('true', '1', 'yes')
-            notifications_enabled_value = 1 if notifications_enabled else 0
-            updates.append("notifications_enabled = %s")
-            values.append(notifications_enabled_value)
+        # Note: notifications_enabled column doesn't exist in the current schema
+        # If you want to add it, run: ALTER TABLE users ADD COLUMN notifications_enabled BOOLEAN DEFAULT TRUE;
+        # For now, we'll skip this update
+        # if "notifications_enabled" in data:
+        #     notifications_enabled = data["notifications_enabled"]
+        #     if isinstance(notifications_enabled, str):
+        #         notifications_enabled = notifications_enabled.lower() in ('true', '1', 'yes')
+        #     notifications_enabled_value = 1 if notifications_enabled else 0
+        #     updates.append("notifications_enabled = %s")
+        #     values.append(notifications_enabled_value)
 
         # Password change requires current password
         if "password" in data and data["password"]:

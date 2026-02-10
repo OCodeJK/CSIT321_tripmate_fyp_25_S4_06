@@ -11,7 +11,13 @@ from routes.export import export_bp
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+
+# --- CORS configuration ---
+# In production, set FRONTEND_URL to your deployed frontend origin (e.g. https://tripmate-frontend.up.railway.app)
+# Multiple origins can be comma-separated.
+_allowed_origins = os.getenv("FRONTEND_URL", "http://localhost:3000,http://127.0.0.1:3000")
+allowed_origins = [o.strip() for o in _allowed_origins.split(",") if o.strip()]
+CORS(app, origins=allowed_origins, supports_credentials=True)
 
 # Initialize AI service on startup
 try:
@@ -353,6 +359,24 @@ def nearest_airport():
 
     return jsonify(nearest)
 
+@app.route("/health", methods=["GET"])
+def health_check():
+    """Lightweight health-check endpoint. Also verifies DB connectivity."""
+    try:
+        from db import get_db_connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchone()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "healthy", "database": "connected"}), 200
+    except Exception as e:
+        return jsonify({"status": "unhealthy", "database": str(e)}), 503
+
+
 if __name__ == "__main__":
     print("Server starting... please wait.")
-    app.run(debug=True)
+    port = int(os.getenv("PORT", 5000))
+    debug = os.getenv("FLASK_ENV", "development") == "development"
+    app.run(host="0.0.0.0", port=port, debug=debug)

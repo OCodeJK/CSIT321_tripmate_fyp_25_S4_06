@@ -9,11 +9,13 @@ import {
   Marker,
 } from "@react-google-maps/api";
 import PhotoManager from "./PhotoManager";
+import TripTimeline from "./TripTimeline";
 import Slideshow from "./Slideshow";
 import AIChat from "./AIChat";
 import ExportButton from "./ExportButton";
 import SuccessModal from "./SuccessModal";
 import WeatherTrafficInfo from "./WeatherTrafficInfo";
+import API_URL from "../config";
 
 // Icon components
 const CarIcon = ({ size = 24, color = "currentColor" }) => (
@@ -77,6 +79,7 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
   const [travelPreference, setTravelPreference] = useState("auto");
   const [optimizedRoute, setOptimizedRoute] = useState([]);
   const [photos, setPhotos] = useState({});
+  const [photoViewMode, setPhotoViewMode] = useState("gallery"); // "gallery" or "timeline"
   const [showSlideshow, setShowSlideshow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -90,11 +93,12 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const mapRef = useRef(null);
+  const timelineRef = useRef(null);
   const [mapKey, setMapKey] = useState(0);
 
   const loadTripPhotos = useCallback(async (id) => {
     try {
-      const res = await axios.get(`http://127.0.0.1:5000/api/photos/trip/${id}`, {
+      const res = await axios.get(`${API_URL}/api/photos/trip/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const photosList = res.data.photos;
@@ -113,7 +117,7 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
 
   const loadTrip = useCallback(async (id) => {
     try {
-      const res = await axios.get(`http://127.0.0.1:5000/api/trips/${id}`, {
+      const res = await axios.get(`${API_URL}/api/trips/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const trip = res.data.trip;
@@ -179,7 +183,7 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
   const loadMonthlyTripCount = useCallback(async () => {
     if (!token || !user) return;
     try {
-      const res = await axios.get("http://127.0.0.1:5000/api/trips/monthly-count", {
+      const res = await axios.get(`${API_URL}/api/trips/monthly-count`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setMonthlyTripCount({
@@ -320,7 +324,7 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
 
   const loadBudgetData = async (tripId) => {
     try {
-      const res = await axios.get(`http://127.0.0.1:5000/api/budget/trip/${tripId}`, {
+      const res = await axios.get(`${API_URL}/api/budget/trip/${tripId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       // Only set budget data if there's actually a budget set (initial_budget > 0)
@@ -347,7 +351,7 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
     }
 
     try {
-      await axios.post(`http://127.0.0.1:5000/api/budget/trip/${currentTripId}`, {
+      await axios.post(`${API_URL}/api/budget/trip/${currentTripId}`, {
         category: newExpense.category,
         description: newExpense.description,
         amount: parseFloat(newExpense.amount)
@@ -365,7 +369,7 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
 
   const deleteExpense = async (itemId) => {
     try {
-      await axios.delete(`http://127.0.0.1:5000/api/budget/item/${itemId}`, {
+      await axios.delete(`${API_URL}/api/budget/item/${itemId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       loadBudgetData(currentTripId);
@@ -381,7 +385,7 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
 
     try {
       const today = new Date().toISOString().split('T')[0];
-      await axios.put(`http://127.0.0.1:5000/api/trips/${currentTripId}`, {
+      await axios.put(`${API_URL}/api/trips/${currentTripId}`, {
         end_date: today
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -444,7 +448,7 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
       }
 
       // Plan the route
-      const planRes = await axios.post("http://127.0.0.1:5000/api/trip-planner/plan", {
+      const planRes = await axios.post(`${API_URL}/api/trip-planner/plan`, {
         origin: {
           name: origin.name,
           lat: parseFloat(origin.lat),
@@ -508,18 +512,22 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
           
           if (tripIdNum && !isNaN(tripIdNum)) {
             // Update existing trip
-            await axios.put(`http://127.0.0.1:5000/api/trips/${tripIdNum}`, tripData, {
+            await axios.put(`${API_URL}/api/trips/${tripIdNum}`, tripData, {
               headers: { Authorization: `Bearer ${token}` }
             });
             setHasUnsavedChanges(false);
             setLastSavedData(JSON.stringify(tripData));
             // Reload budget data to reflect the updated initial budget
             loadBudgetData(tripIdNum);
+            // Also save any pending timeline edits
+            if (timelineRef.current?.save) {
+              await timelineRef.current.save();
+            }
             setSuccessMessage("Your trip has been updated successfully!");
             setShowSuccessModal(true);
           } else {
             // Create new trip
-            const saveRes = await axios.post("http://127.0.0.1:5000/api/trips/", tripData, {
+            const saveRes = await axios.post(`${API_URL}/api/trips/`, tripData, {
               headers: { Authorization: `Bearer ${token}` }
             });
             const newTripId = saveRes.data.trip.id ? Number(saveRes.data.trip.id) : null;
@@ -529,6 +537,10 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
             // Load budget data for the newly created trip
             if (newTripId) {
               loadBudgetData(newTripId);
+            }
+            // Also save any pending timeline edits
+            if (timelineRef.current?.save) {
+              await timelineRef.current.save();
             }
             setSuccessMessage("Your trip has been created successfully!");
             setShowSuccessModal(true);
@@ -565,7 +577,7 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
       let errorMessage = "Failed to plan trip. ";
       
       if (!err.response) {
-        errorMessage += "Cannot connect to server. Make sure the backend is running on http://127.0.0.1:5000";
+        errorMessage += `Cannot connect to server. Make sure the backend is running on ${API_URL}`;
       } else if (err.response.status === 400) {
         errorMessage += err.response.data?.error || "Invalid request. Please check your inputs.";
       } else if (err.response.status === 500) {
@@ -762,9 +774,12 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
       width: "100%",
       maxWidth: "1000px",
       margin: "0 auto",
-      padding: "clamp(24px, 4vw, 48px) clamp(24px, 4vw, 48px)",
+      padding: "clamp(24px, 4vw, 48px) clamp(24px, 4vw, 48px) clamp(120px, 15vw, 150px) clamp(24px, 4vw, 48px)",
       position: "relative",
-      zIndex: 1
+      zIndex: 1,
+      minHeight: "100vh",
+      display: "flex",
+      flexDirection: "column"
     }}>
       {onBack && (
         <button
@@ -1661,14 +1676,76 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
 
       {optimizedRoute.length > 0 && currentTripId && (
         <>
-          <PhotoManager
-            locations={allRouteLocations}
-            onPhotosUpdate={setPhotos}
-            tripId={currentTripId}
-            token={token}
-            photos={photos}
-            user={user}
-          />
+          {/* Photo View Toggle */}
+          <div style={{
+            display: "flex",
+            gap: "12px",
+            marginTop: "clamp(24px, 4vw, 32px)",
+            marginBottom: "16px"
+          }}>
+            <button
+              onClick={() => setPhotoViewMode("gallery")}
+              style={{
+                padding: "12px 24px",
+                background: photoViewMode === "gallery"
+                  ? "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)"
+                  : "rgba(255, 255, 255, 0.7)",
+                color: photoViewMode === "gallery" ? "white" : "#64748b",
+                border: "1px solid rgba(226, 232, 240, 0.5)",
+                borderRadius: "12px",
+                cursor: "pointer",
+                fontSize: "15px",
+                fontWeight: "600",
+                transition: "all 0.3s",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)"
+              }}
+            >
+              Gallery
+            </button>
+            <button
+              onClick={() => setPhotoViewMode("timeline")}
+              style={{
+                padding: "12px 24px",
+                background: photoViewMode === "timeline"
+                  ? "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)"
+                  : "rgba(255, 255, 255, 0.7)",
+                color: photoViewMode === "timeline" ? "white" : "#64748b",
+                border: "1px solid rgba(226, 232, 240, 0.5)",
+                borderRadius: "12px",
+                cursor: "pointer",
+                fontSize: "15px",
+                fontWeight: "600",
+                transition: "all 0.3s",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)"
+              }}
+            >
+              Timeline
+            </button>
+          </div>
+
+          {photoViewMode === "gallery" ? (
+            <PhotoManager
+              locations={allRouteLocations}
+              onPhotosUpdate={setPhotos}
+              tripId={currentTripId}
+              token={token}
+              photos={photos}
+              user={user}
+            />
+          ) : (
+            <TripTimeline
+              ref={timelineRef}
+              tripId={currentTripId}
+              token={token}
+              onPhotoDeleted={() => {
+                if (currentTripId) {
+                  loadTripPhotos(currentTripId);
+                }
+              }}
+            />
+          )}
 
 
           {/* Budget Tracking Section */}
@@ -2090,9 +2167,9 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
       {/* Action Buttons at Bottom */}
       <div style={{
         position: "sticky",
-        bottom: 0,
-        left: 0,
-        right: 0,
+        bottom: "0",
+        left: "0",
+        right: "0",
         background: "rgba(255, 255, 255, 0.95)",
         backdropFilter: "blur(20px)",
         WebkitBackdropFilter: "blur(20px)",
@@ -2105,7 +2182,9 @@ export default function TripPlanner({ token, user, tripId, onBack }) {
         justifyContent: "center",
         flexWrap: "wrap",
         alignItems: "center",
-        zIndex: 10
+        zIndex: 10,
+        marginTop: "auto",
+        width: "100%"
       }}>
         {!user?.is_premium && !currentTripId && (
           <span style={{ 

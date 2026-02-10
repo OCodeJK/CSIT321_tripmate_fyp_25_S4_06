@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import tripmateLogo from "../assets/logo/tripmate_logo.png";
+import API_URL from "../config";
 
 export default function Register({ onRegister, onSwitchToLogin, onBack }) {
   const [formData, setFormData] = useState({
@@ -34,7 +35,7 @@ export default function Register({ onRegister, onSwitchToLogin, onBack }) {
     setLoading(true);
 
     try {
-      const res = await axios.post("http://127.0.0.1:5000/api/auth/register", {
+      const res = await axios.post(`${API_URL}/api/auth/register`, {
         username: formData.username,
         email: formData.email,
         password: formData.password,

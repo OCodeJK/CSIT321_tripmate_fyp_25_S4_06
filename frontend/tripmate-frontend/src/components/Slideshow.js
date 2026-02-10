@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Footer from "./Footer";
 import ExportButton from "./ExportButton";
+import API_URL from "../config";
 
 export default function Slideshow({ photos, locations, routeData, token, user, onClose, onBackToTrip }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -345,7 +346,7 @@ export default function Slideshow({ photos, locations, routeData, token, user, o
           {isPlaying ? (
             <img
               key={currentIndex}
-              src={`http://127.0.0.1:5000${currentPhoto.url}`}
+              src={`${API_URL}${currentPhoto.url}`}
               alt={currentPhoto.filename}
               onClick={() => setIsPlaying(false)}
               style={{

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import API_URL from "../config";
 
 export default function NotificationPanel({ token, user, position }) {
   const [notifications, setNotifications] = useState([]);
@@ -66,7 +67,7 @@ export default function NotificationPanel({ token, user, position }) {
 
   const fetchNotifications = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:5000/api/notifications/', {
+      const response = await axios.get(`${API_URL}/api/notifications/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(response.data.notifications || []);
@@ -80,7 +81,7 @@ export default function NotificationPanel({ token, user, position }) {
 
   const markAsRead = async (notificationId) => {
     try {
-      await axios.put(`http://127.0.0.1:5000/api/notifications/${notificationId}/read`, {}, {
+      await axios.put(`${API_URL}/api/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(prev => prev.map(n => 
@@ -94,7 +95,7 @@ export default function NotificationPanel({ token, user, position }) {
 
   const markAllAsRead = async () => {
     try {
-      await axios.put('http://127.0.0.1:5000/api/notifications/read-all', {}, {
+      await axios.put(`${API_URL}/api/notifications/read-all`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
@@ -106,7 +107,7 @@ export default function NotificationPanel({ token, user, position }) {
 
   const deleteNotification = async (notificationId) => {
     try {
-      await axios.delete(`http://127.0.0.1:5000/api/notifications/${notificationId}`, {
+      await axios.delete(`${API_URL}/api/notifications/${notificationId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       // Remove the deleted notification from the list

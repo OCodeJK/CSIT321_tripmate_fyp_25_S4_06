@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import API_URL from "../config";
 
 export default function WeatherTrafficInfo({ locations, routeMode, directions }) {
   const [weatherData, setWeatherData] = useState({});
@@ -78,7 +79,7 @@ export default function WeatherTrafficInfo({ locations, routeMode, directions })
       for (const location of destinations) {
         if (location.lat && location.lng) {
           weatherPromises.push(
-            axios.get('http://127.0.0.1:5000/api/weather', {
+            axios.get(`${API_URL}/api/weather`, {
               params: { lat: location.lat, lng: location.lng }
             }).then(response => ({
               location: location.name,

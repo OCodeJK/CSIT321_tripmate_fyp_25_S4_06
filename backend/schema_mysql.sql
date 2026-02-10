@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS photos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     trip_id INT NOT NULL,
     location_name VARCHAR(200),
+    site_name VARCHAR(200),
+    geocoded_location VARCHAR(200),
+    activity_notes TEXT,
     filename VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
     file_size BIGINT DEFAULT 0,
@@ -119,6 +122,8 @@ CREATE TABLE IF NOT EXISTS website_reviews (
 -- Create indexes for better performance
 CREATE INDEX idx_trips_user_id ON trips(user_id);
 CREATE INDEX idx_photos_trip_id ON photos(trip_id);
+CREATE INDEX idx_photos_site_name ON photos(site_name);
+CREATE INDEX idx_photos_geocoded_location ON photos(geocoded_location);
 CREATE INDEX idx_reviews_trip_id ON reviews(trip_id);
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_budget_items_trip_id ON budget_items(trip_id);

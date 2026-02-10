@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
+import API_URL from "../config";
 
 export default function PhotoManager({ locations, onPhotosUpdate, tripId, token, photos: photosProp, user }) {
   const [photos, setPhotos] = useState(photosProp || {});
@@ -25,10 +26,11 @@ export default function PhotoManager({ locations, onPhotosUpdate, tripId, token,
       formData.append("photos", file);
     });
     formData.append("trip_id", tripId);
-    formData.append("location_name", "All Locations");
+    // Use a neutral internal key but don't surface it in the UI
+    formData.append("location_name", "Trip Photos");
 
     try {
-      const res = await axios.post("http://127.0.0.1:5000/api/photos/upload", formData, {
+      const res = await axios.post(`${API_URL}/api/photos/upload`, formData, {
         headers: { 
           "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${token}`
@@ -36,7 +38,7 @@ export default function PhotoManager({ locations, onPhotosUpdate, tripId, token,
       });
       
       const newPhotos = res.data.photos || [];
-      const locationKey = "All Locations";
+      const locationKey = "Trip Photos";
       setPhotos((prev) => {
         const updated = {
           ...prev,
@@ -66,7 +68,7 @@ export default function PhotoManager({ locations, onPhotosUpdate, tripId, token,
 
   const deletePhoto = async (locationName, photoId) => {
     try {
-      await axios.delete(`http://127.0.0.1:5000/api/photos/${photoId}`, {
+      await axios.delete(`${API_URL}/api/photos/${photoId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setPhotos((prev) => {
@@ -229,99 +231,99 @@ export default function PhotoManager({ locations, onPhotosUpdate, tripId, token,
 
         // Render photos grid
         return (
-          <div style={{ 
-            display: "grid", 
-            gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", 
-            gap: "clamp(16px, 3vw, 20px)" 
-          }}>
+      <div style={{ 
+        display: "grid", 
+        gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", 
+        gap: "clamp(16px, 3vw, 20px)" 
+      }}>
             {allPhotosList.map((photo) => {
-              const isVideo = photo.filename?.toLowerCase().endsWith('.mp4') || 
-                             photo.filename?.toLowerCase().endsWith('.mov') ||
-                             photo.url?.includes('.mp4') ||
-                             photo.url?.includes('.mov');
-              
-              return (
-                <div 
-                  key={photo.id} 
-                  style={{ 
-                    position: "relative",
-                    borderRadius: "16px",
-                    overflow: "hidden",
-                    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) inset",
-                    transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-                    cursor: "pointer"
+            const isVideo = photo.filename?.toLowerCase().endsWith('.mp4') || 
+                           photo.filename?.toLowerCase().endsWith('.mov') ||
+                           photo.url?.includes('.mp4') ||
+                           photo.url?.includes('.mov');
+            
+            return (
+              <div 
+                key={photo.id} 
+                style={{ 
+                  position: "relative",
+                  borderRadius: "16px",
+                  overflow: "hidden",
+                  boxShadow: "0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) inset",
+                  transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                  cursor: "pointer"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-4px) scale(1.02)";
+                  e.currentTarget.style.boxShadow = "0 12px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(102, 126, 234, 0.2) inset";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0) scale(1)";
+                  e.currentTarget.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) inset";
+                }}
+              >
+                {isVideo ? (
+                  <video
+                    src={`${API_URL}${photo.url}`}
+                    style={{
+                      width: "100%",
+                      height: "160px",
+                      objectFit: "cover",
+                      display: "block"
+                    }}
+                    controls
+                    muted
+                  />
+                ) : (
+                  <img
+                    src={`${API_URL}${photo.url}`}
+                    alt={photo.filename}
+                    style={{
+                      width: "100%",
+                      height: "160px",
+                      objectFit: "cover",
+                      display: "block"
+                    }}
+                  />
+                )}
+                <button
+                  onClick={() => deletePhoto("Trip Photos", photo.id)}
+                  style={{
+                    position: "absolute",
+                    top: "10px",
+                    right: "10px",
+                    background: "rgba(239, 68, 68, 0.95)",
+                    backdropFilter: "blur(10px)",
+                    WebkitBackdropFilter: "blur(10px)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: "28px",
+                    height: "28px",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 4px 12px rgba(239, 68, 68, 0.4)",
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-4px) scale(1.02)";
-                    e.currentTarget.style.boxShadow = "0 12px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(102, 126, 234, 0.2) inset";
+                    e.currentTarget.style.transform = "scale(1.1)";
+                    e.currentTarget.style.background = "rgba(220, 38, 38, 1)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0) scale(1)";
-                    e.currentTarget.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) inset";
+                    e.currentTarget.style.transform = "scale(1)";
+                    e.currentTarget.style.background = "rgba(239, 68, 68, 0.95)";
                   }}
                 >
-                  {isVideo ? (
-                    <video
-                      src={`http://127.0.0.1:5000${photo.url}`}
-                      style={{
-                        width: "100%",
-                        height: "160px",
-                        objectFit: "cover",
-                        display: "block"
-                      }}
-                      controls
-                      muted
-                    />
-                  ) : (
-                    <img
-                      src={`http://127.0.0.1:5000${photo.url}`}
-                      alt={photo.filename}
-                      style={{
-                        width: "100%",
-                        height: "160px",
-                        objectFit: "cover",
-                        display: "block"
-                      }}
-                    />
-                  )}
-                  <button
-                    onClick={() => deletePhoto("All Locations", photo.id)}
-                    style={{
-                      position: "absolute",
-                      top: "10px",
-                      right: "10px",
-                      background: "rgba(239, 68, 68, 0.95)",
-                      backdropFilter: "blur(10px)",
-                      WebkitBackdropFilter: "blur(10px)",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "50%",
-                      width: "28px",
-                      height: "28px",
-                      cursor: "pointer",
-                      fontSize: "16px",
-                      fontWeight: "600",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      boxShadow: "0 4px 12px rgba(239, 68, 68, 0.4)",
-                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "scale(1.1)";
-                      e.currentTarget.style.background = "rgba(220, 38, 38, 1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "scale(1)";
-                      e.currentTarget.style.background = "rgba(239, 68, 68, 0.95)";
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              );
+                  ×
+                </button>
+              </div>
+            );
             })}
-          </div>
+      </div>
         );
       })()}
     </div>

@@ -16,6 +16,7 @@ import NotificationPanel from "./components/NotificationPanel";
 import Footer from "./components/Footer";
 import tripmateLogo from "./assets/logo/tripmate_logo.png";
 import axios from "axios";
+import API_URL from "./config";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -46,7 +47,7 @@ function App() {
 
     if (savedToken && savedUser) {
       // Verify token is still valid
-      axios.post("http://127.0.0.1:5000/api/auth/verify", {}, {
+      axios.post(`${API_URL}/api/auth/verify`, {}, {
         headers: { Authorization: `Bearer ${savedToken}` }
       })
       .then((res) => {

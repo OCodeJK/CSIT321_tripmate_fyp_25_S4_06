@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import API_URL from "../config";
 
 export default function Subscription({ token, user, onBack }) {
   const [subscriptionData, setSubscriptionData] = useState(null);
@@ -62,7 +63,7 @@ export default function Subscription({ token, user, onBack }) {
 
   const loadSubscriptionData = async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:5000/api/account/", {
+      const res = await axios.get(`${API_URL}/api/account/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const userData = res.data.user;
@@ -89,7 +90,7 @@ export default function Subscription({ token, user, onBack }) {
   const handleSubscribe = async () => {
     if (window.confirm("Subscribe to Premium for 30 days? (This is a demo - no payment required)")) {
       try {
-        await axios.post("http://127.0.0.1:5000/api/premium/subscribe", {}, {
+        await axios.post(`${API_URL}/api/premium/subscribe`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
         alert("Premium subscription activated!");
@@ -103,7 +104,7 @@ export default function Subscription({ token, user, onBack }) {
   const handleCancel = async () => {
     if (window.confirm("Cancel subscription? Your premium access will remain until the end of your billing period.")) {
       try {
-        await axios.post("http://127.0.0.1:5000/api/premium/cancel", {}, {
+        await axios.post(`${API_URL}/api/premium/cancel`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
         alert("Subscription cancellation confirmed. Premium access will remain until expiration.");

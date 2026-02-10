@@ -1,12 +1,23 @@
 import bcrypt
+import os
 from db import get_db_connection
 
 def create_admin():
-    """Create admin user account"""
-    username = "admin"
-    email = "admin@tripmate.com"
-    password = "admin123"
+    """Create admin user account.
+    Reads credentials from env vars so nothing is hardcoded in source:
+      ADMIN_USERNAME  (default: admin)
+      ADMIN_EMAIL     (default: admin@tripmate.com)
+      ADMIN_PASSWORD  (required – no default for safety)
+    """
+    username = os.getenv("ADMIN_USERNAME", "admin")
+    email = os.getenv("ADMIN_EMAIL", "admin@tripmate.com")
+    password = os.getenv("ADMIN_PASSWORD")
     full_name = "Administrator"
+
+    if not password:
+        print("ERROR: Set ADMIN_PASSWORD env var before running this script.")
+        print("  e.g.  ADMIN_PASSWORD=YourSecurePass python create_admin.py")
+        return
     
     # Hash password
     password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")

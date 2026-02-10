@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import API_URL from "../config";
 
 export default function DashboardHome({ token, user, onCreateNew, onNavigateToTrips, onNavigateToMemories }) {
   const [recentTrips, setRecentTrips] = useState([]);
@@ -20,7 +21,7 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
 
   const fetchAllPhotos = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:5000/api/photos/user/all', {
+      const response = await axios.get(`${API_URL}/api/photos/user/all`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -116,7 +117,7 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
 
   const loadRecentTrips = async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:5000/api/trips/", {
+      const res = await axios.get(`${API_URL}/api/trips/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const sorted = res.data.trips.sort((a, b) => {
@@ -409,7 +410,7 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
                       >
                         {isVideo ? (
                           <video
-                            src={`http://127.0.0.1:5000${photo.url}`}
+                            src={`${API_URL}${photo.url}`}
                             style={{
                               width: "100%",
                               height: "100%",
@@ -420,7 +421,7 @@ export default function DashboardHome({ token, user, onCreateNew, onNavigateToTr
                           />
                         ) : (
                           <img
-                            src={`http://127.0.0.1:5000${photo.url}`}
+                            src={`${API_URL}${photo.url}`}
                             alt={photo.filename || "Memory"}
                             style={{
                               width: "100%",

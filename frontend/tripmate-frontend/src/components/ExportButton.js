@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import SuccessModal from "./SuccessModal";
+import API_URL from "../config";
 
 export default function ExportButton({ locations, photos, routeData, token, user }) {
   const [isExporting, setIsExporting] = useState(false);
@@ -19,7 +20,7 @@ export default function ExportButton({ locations, photos, routeData, token, user
     try {
       setProgress(20);
       const response = await axios.post(
-        "http://127.0.0.1:5000/api/export/video",
+        `${API_URL}/api/export/video`,
         {
           locations: locations,
           photos: photos,

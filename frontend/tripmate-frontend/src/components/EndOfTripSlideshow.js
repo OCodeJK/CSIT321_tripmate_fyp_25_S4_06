@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import API_URL from "../config";
 
 export default function EndOfTripSlideshow({ photos, tripName, locations, routeData, token, user, onBackToPlanner, onShare }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -48,7 +49,7 @@ export default function EndOfTripSlideshow({ photos, tripName, locations, routeD
     try {
       setExportProgress(20);
       const response = await axios.post(
-        "http://127.0.0.1:5000/api/export/video",
+        `${API_URL}/api/export/video`,
         {
           locations: locations || [],
           photos: photos,
@@ -277,7 +278,7 @@ export default function EndOfTripSlideshow({ photos, tripName, locations, routeD
             
             return isVideo ? (
               <video
-                src={`http://127.0.0.1:5000${currentPhoto.url}`}
+                src={`${API_URL}${currentPhoto.url}`}
                 controls
                 autoPlay={isPlaying}
                 style={{
@@ -290,7 +291,7 @@ export default function EndOfTripSlideshow({ photos, tripName, locations, routeD
               />
             ) : (
               <img
-                src={`http://127.0.0.1:5000${currentPhoto.url}`}
+                src={`${API_URL}${currentPhoto.url}`}
                 alt={currentPhoto.filename}
                 style={{
                   maxWidth: "100%",

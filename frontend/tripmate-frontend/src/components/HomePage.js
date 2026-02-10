@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import Footer from "./Footer";
 import tripmateLogo from "../assets/logo/tripmate_logo.png";
+import API_URL from "../config";
 
 export default function HomePage({ onGetStarted, onLogin }) {
   const [hoveredCard, setHoveredCard] = useState(null);
@@ -16,7 +17,7 @@ export default function HomePage({ onGetStarted, onLogin }) {
   useEffect(() => {
     const fetchReviews = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:5000/api/website-reviews/");
+        const response = await axios.get(`${API_URL}/api/website-reviews/`);
         const allReviews = response.data.reviews || [];
         
         // Filter for specific usernames: Nicholas, John, Alexa

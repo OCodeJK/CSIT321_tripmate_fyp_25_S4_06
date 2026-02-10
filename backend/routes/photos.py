@@ -6,6 +6,8 @@ import os
 import uuid
 import subprocess
 import json as json_lib
+import math
+import requests
 from datetime import datetime
 from decimal import Decimal
 from PIL import Image
@@ -200,6 +202,219 @@ def extract_video_metadata(filepath):
     
     return latitude, longitude, taken_at
 
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate the great circle distance between two points on Earth using the Haversine formula.
+    Returns distance in kilometers.
+    """
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return float('inf')
+    
+    # Convert to float if Decimal
+    lat1 = float(lat1)
+    lon1 = float(lon1)
+    lat2 = float(lat2)
+    lon2 = float(lon2)
+    
+    # Radius of Earth in kilometers
+    R = 6371.0
+    
+    # Convert degrees to radians
+    lat1_rad = math.radians(lat1)
+    lon1_rad = math.radians(lon1)
+    lat2_rad = math.radians(lat2)
+    lon2_rad = math.radians(lon2)
+    
+    # Haversine formula
+    dlat = lat2_rad - lat1_rad
+    dlon = lon2_rad - lon1_rad
+    
+    a = math.sin(dlat / 2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    distance = R * c
+    return distance
+
+def match_photo_to_site(photo_lat, photo_lon, trip_data):
+    """
+    Match a photo's GPS coordinates to the nearest site in the travel plan.
+    
+    Args:
+        photo_lat: Photo latitude (Decimal or float)
+        photo_lon: Photo longitude (Decimal or float)
+        trip_data: Dictionary with 'origin', 'destinations', and 'optimized_route' keys
+    
+    Returns:
+        site_name (str): Name of the matched site, or "Unassigned" if no match within threshold
+    """
+    if photo_lat is None or photo_lon is None:
+        return "Unassigned"
+    
+    # Threshold distance in kilometers (1.5 km default)
+    MAX_DISTANCE_KM = 1.5
+    
+    # Collect all sites from the trip
+    sites = []
+    
+    # Add origin if it exists
+    if trip_data.get('origin') and isinstance(trip_data['origin'], dict):
+        origin = trip_data['origin']
+        if origin.get('name') and origin.get('lat') and origin.get('lng'):
+            sites.append({
+                'name': origin['name'],
+                'lat': float(origin['lat']),
+                'lng': float(origin['lng'])
+            })
+    
+    # Add destinations
+    destinations = trip_data.get('destinations', [])
+    if isinstance(destinations, str):
+        try:
+            destinations = json_lib.loads(destinations)
+        except:
+            destinations = []
+    
+    if isinstance(destinations, list):
+        for dest in destinations:
+            if isinstance(dest, dict) and dest.get('name') and dest.get('lat') and dest.get('lng'):
+                sites.append({
+                    'name': dest['name'],
+                    'lat': float(dest['lat']),
+                    'lng': float(dest['lng'])
+                })
+    
+    # Add optimized_route points (these are the actual route waypoints)
+    optimized_route = trip_data.get('optimized_route', [])
+    if isinstance(optimized_route, str):
+        try:
+            optimized_route = json_lib.loads(optimized_route)
+        except:
+            optimized_route = []
+    
+    if isinstance(optimized_route, list):
+        for point in optimized_route:
+            if isinstance(point, dict):
+                # Check different possible field names
+                point_name = point.get('name') or point.get('location', {}).get('name') or point.get('address', '')
+                point_lat = point.get('lat') or (point.get('location', {}) or {}).get('lat')
+                point_lng = point.get('lng') or (point.get('location', {}) or {}).get('lng')
+                
+                if point_name and point_lat and point_lng:
+                    sites.append({
+                        'name': point_name,
+                        'lat': float(point_lat),
+                        'lng': float(point_lng)
+                    })
+    
+    if not sites:
+        return "Unassigned"
+    
+    # Find the nearest site
+    photo_lat_float = float(photo_lat)
+    photo_lon_float = float(photo_lon)
+    
+    min_distance = float('inf')
+    nearest_site = None
+    
+    for site in sites:
+        distance = haversine_distance(
+            photo_lat_float, photo_lon_float,
+            site['lat'], site['lng']
+        )
+        
+        if distance < min_distance:
+            min_distance = distance
+            nearest_site = site
+    
+    # Return site name if within threshold, otherwise "Unassigned"
+    if nearest_site and min_distance <= MAX_DISTANCE_KM:
+        return nearest_site['name']
+    else:
+        return "Unassigned"
+
+def reverse_geocode(latitude, longitude):
+    """
+    Reverse geocode GPS coordinates to get city and country using Google Maps Geocoding API.
+
+    Returns:
+        (city, country) tuple, where each element may be None if not found.
+    """
+    if latitude is None or longitude is None:
+        return None, None
+    
+    try:
+        # Get Google Maps API key from environment
+        # Try multiple possible environment variable names
+        api_key = (os.getenv('GOOGLE_MAPS_API_KEY') or 
+                  os.getenv('REACT_APP_GOOGLE_MAPS_API_KEY') or
+                  os.getenv('GOOGLE_API_KEY'))
+        
+        if not api_key:
+            print("Warning: Google Maps API key not found. Cannot reverse geocode.")
+            print("Set GOOGLE_MAPS_API_KEY or REACT_APP_GOOGLE_MAPS_API_KEY in backend/.env")
+            return None, None
+        
+        # Google Maps Geocoding API endpoint
+        url = "https://maps.googleapis.com/maps/api/geocode/json"
+        params = {
+            'latlng': f"{float(latitude)},{float(longitude)}",
+            'key': api_key,
+            'result_type': 'locality|administrative_area_level_1|country'  # Prioritize city/state/country
+        }
+        
+        response = requests.get(url, params=params, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data.get('status') == 'OK' and data.get('results'):
+                # Try to get the most relevant location name
+                # Priority: locality (city) > administrative_area_level_1 (state) > country
+                city = None
+                country = None
+                
+                for result in data.get('results', []):
+                    address_components = result.get('address_components', [])
+                    
+                    # Look for country
+                    for component in address_components:
+                        if 'country' in component.get('types', []):
+                            country = component.get('long_name')
+                            break
+                    
+                    # Look for city/locality first
+                    for component in address_components:
+                        if 'locality' in component.get('types', []):
+                            city = component.get('long_name')
+                            break
+                    
+                    # Fallback to administrative area (state/province) as city if locality not found
+                    if not city:
+                        for component in address_components:
+                            if 'administrative_area_level_1' in component.get('types', []):
+                                city = component.get('long_name')
+                                break
+                    
+                    if city or country:
+                        return city, country
+                
+                # If no specific component found, try formatted address of first result
+                first_result = data.get('results', [{}])[0]
+                if first_result.get('formatted_address'):
+                    formatted = first_result.get('formatted_address', '')
+                    parts = [p.strip() for p in formatted.split(',') if p.strip()]
+                    if parts:
+                        # Heuristic: first part as city, last part as country when possible
+                        if len(parts) == 1:
+                            return parts[0], None
+                        return parts[0], parts[-1]
+        
+        return None, None
+        
+    except Exception as e:
+        print(f"Error reverse geocoding coordinates ({latitude}, {longitude}): {e}")
+        return None, None
+
 def get_user_from_token():
     """Helper to get user from token"""
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
@@ -249,6 +464,32 @@ def upload_photos():
         # Calculate current storage used for this trip (sum of file_size)
         cur.execute("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE trip_id = %s", (trip_id,))
         current_size = cur.fetchone()[0] or 0
+
+        # Get trip data for site matching (origin, destinations, optimized_route)
+        cur.execute(
+            """SELECT origin, destinations, optimized_route FROM trips WHERE id = %s""",
+            (trip_id,)
+        )
+        trip_row = cur.fetchone()
+        trip_data = {}
+        if trip_row:
+            # Parse JSON fields
+            origin_data = trip_row[0]
+            destinations_data = trip_row[1]
+            optimized_route_data = trip_row[2]
+            
+            if isinstance(origin_data, str):
+                origin_data = json_lib.loads(origin_data) if origin_data else None
+            if isinstance(destinations_data, str):
+                destinations_data = json_lib.loads(destinations_data) if destinations_data else []
+            if isinstance(optimized_route_data, str):
+                optimized_route_data = json_lib.loads(optimized_route_data) if optimized_route_data else []
+            
+            trip_data = {
+                'origin': origin_data,
+                'destinations': destinations_data,
+                'optimized_route': optimized_route_data
+            }
 
         uploaded_photos = []
         total_size = 0
@@ -312,12 +553,34 @@ def upload_photos():
             
             geotag_required = len(missing_fields) > 0
 
-            # Save to database with file size and metadata
+            # Match photo to site based on GPS coordinates
+            # If GPS is available, match to nearest site; otherwise use "Unassigned"
+            site_name = "Unassigned"
+            geocoded_location = None
+            
+            if latitude is not None and longitude is not None:
+                # Match to site in travel plan
+                site_name = match_photo_to_site(latitude, longitude, trip_data)
+                
+                # Reverse geocode to get actual city/place name (city + country)
+                city, country = reverse_geocode(latitude, longitude)
+                if city or country:
+                    # Store a human-readable location string "City, Country" or just city/country
+                    if city and country:
+                        geocoded_location = f"{city}, {country}"
+                    else:
+                        geocoded_location = city or country
+                    print(f"Geocoded location for photo {filename}: {geocoded_location}")
+            elif taken_at is None:
+                # If no GPS and no timestamp, use upload timestamp as fallback
+                taken_at = datetime.now()
+
+            # Save to database with file size, metadata, site association, and geocoded location
             cur.execute(
-                """INSERT INTO photos (trip_id, location_name, filename, file_path, file_size, 
+                """INSERT INTO photos (trip_id, location_name, site_name, geocoded_location, filename, file_path, file_size, 
                    media_type, latitude, longitude, taken_at)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (trip_id, location_name, filename, f"/uploads/photos/{unique_filename}", file_size,
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (trip_id, location_name, site_name, geocoded_location, filename, f"/uploads/photos/{unique_filename}", file_size,
                  media_type, latitude, longitude, taken_at)
             )
             photo_id = cur.lastrowid
@@ -327,6 +590,8 @@ def upload_photos():
                 "filename": filename,
                 "url": f"/api/photos/uploads/photos/{unique_filename}",
                 "location_name": location_name,
+                "site_name": site_name,  # Site from travel plan that photo is associated with
+                "geocoded_location": geocoded_location,  # City/place name from reverse geocoding
                 "media_type": media_type,
                 "uploaded_at": datetime.now().isoformat(),
                 "success": True
@@ -492,8 +757,12 @@ def get_trip_photos(trip_id):
             return jsonify({"error": "Unauthorized"}), 403
 
         cur.execute(
-            """SELECT id, location_name, filename, file_path, media_type, latitude, longitude, 
-               taken_at, uploaded_at FROM photos WHERE trip_id = %s ORDER BY uploaded_at ASC""",
+            """SELECT id, location_name, site_name, geocoded_location,
+                      filename, file_path, media_type, latitude, longitude, 
+                      taken_at, uploaded_at 
+               FROM photos 
+               WHERE trip_id = %s 
+               ORDER BY uploaded_at ASC""",
             (trip_id,)
         )
 
@@ -502,26 +771,28 @@ def get_trip_photos(trip_id):
             photo_data = {
                 "id": row[0],
                 "location_name": row[1],
-                "filename": row[2],
-                "url": f"/api/photos{row[3]}",
-                "media_type": row[4] if len(row) > 4 else "image",
-                "uploaded_at": row[8].isoformat() if len(row) > 8 and row[8] else None
+                "site_name": row[2] or "Unassigned",  # Site from travel plan
+                "geocoded_location": row[3],  # City/place name from reverse geocoding
+                "filename": row[4],
+                "url": f"/api/photos{row[5]}",
+                "media_type": row[6] if len(row) > 6 else "image",
+                "uploaded_at": row[10].isoformat() if len(row) > 10 and row[10] else None
             }
             # Add geotagging fields if present
-            if len(row) > 5 and row[5] is not None:  # latitude
-                photo_data["latitude"] = float(row[5])
-            if len(row) > 6 and row[6] is not None:  # longitude
-                photo_data["longitude"] = float(row[6])
-            if len(row) > 7 and row[7]:  # taken_at
-                photo_data["taken_at"] = row[7].isoformat() if hasattr(row[7], 'isoformat') else str(row[7])
+            if len(row) > 7 and row[7] is not None:  # latitude
+                photo_data["latitude"] = float(row[7])
+            if len(row) > 8 and row[8] is not None:  # longitude
+                photo_data["longitude"] = float(row[8])
+            if len(row) > 9 and row[9]:  # taken_at
+                photo_data["taken_at"] = row[9].isoformat() if hasattr(row[9], 'isoformat') else str(row[9])
             
             # Mark if geotagging is required
-            if (len(row) <= 5 or row[5] is None or row[6] is None) or (len(row) <= 7 or row[7] is None):
+            if (len(row) <= 7 or row[7] is None or row[8] is None) or (len(row) <= 9 or row[9] is None):
                 photo_data["geotag_required"] = True
                 missing = []
-                if len(row) <= 5 or row[5] is None or row[6] is None:
+                if len(row) <= 7 or row[7] is None or row[8] is None:
                     missing.append("gps")
-                if len(row) <= 7 or row[7] is None:
+                if len(row) <= 9 or row[9] is None:
                     missing.append("taken_at")
                 photo_data["missing_fields"] = missing
             else:
@@ -548,6 +819,9 @@ def update_geotag(photo_id):
     latitude = data.get("latitude")
     longitude = data.get("longitude")
     taken_at = data.get("taken_at")
+    manual_city = data.get("city")
+    manual_country = data.get("country")
+    activity_notes = data.get("activities")  # free-form text about what user did
     
     # Validate latitude/longitude if provided
     if latitude is not None:
@@ -578,8 +852,9 @@ def update_geotag(photo_id):
             return jsonify({"error": "Invalid taken_at format. Use ISO datetime string (YYYY-MM-DDTHH:MM:SS)."}), 400
     
     # At least one field must be provided
-    if latitude is None and longitude is None and taken_at is None:
-        return jsonify({"error": "At least one field (latitude, longitude, taken_at) must be provided"}), 400
+    if (latitude is None and longitude is None and taken_at is None 
+        and not manual_city and not manual_country and not activity_notes):
+        return jsonify({"error": "At least one field (latitude, longitude, taken_at, city, country, activities) must be provided"}), 400
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -602,6 +877,7 @@ def update_geotag(photo_id):
         # Build update query
         updates = []
         values = []
+        geocoded_location = None
         
         if latitude is not None:
             updates.append("latitude = %s")
@@ -612,6 +888,26 @@ def update_geotag(photo_id):
         if taken_at is not None:
             updates.append("taken_at = %s")
             values.append(taken_at)
+        
+        # If both latitude and longitude are provided, reverse geocode to get location name
+        if latitude is not None and longitude is not None:
+            city, country = reverse_geocode(latitude, longitude)
+            if city or country:
+                geocoded_location = f"{city}, {country}" if city and country else (city or country)
+                updates.append("geocoded_location = %s")
+                values.append(geocoded_location)
+
+        # Allow manual city/country assignment (for photos without GPS)
+        if manual_city or manual_country:
+            if not geocoded_location:
+                geocoded_location = f"{manual_city}, {manual_country}" if manual_city and manual_country else (manual_city or manual_country)
+                updates.append("geocoded_location = %s")
+                values.append(geocoded_location)
+
+        # Store / update activity notes if provided
+        if activity_notes is not None:
+            updates.append("activity_notes = %s")
+            values.append(activity_notes.strip() or None)
         
         values.append(photo_id)
         
@@ -628,6 +924,169 @@ def update_geotag(photo_id):
         
     except Exception as e:
         conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+@photos_bp.route("/trip/<int:trip_id>/timeline", methods=["GET"])
+def get_trip_timeline(trip_id):
+    """
+    Get trip photos organized as a chronological timeline grouped by detected city/country.
+    - If geocoded_location (city/country) exists, group by that.
+    - If not, place photo into an Unassigned group.
+    """
+    user = get_user_from_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Verify trip ownership and get trip name/destinations
+        cur.execute("SELECT user_id, name, destinations FROM trips WHERE id = %s", (trip_id,))
+        trip = cur.fetchone()
+        if not trip:
+            return jsonify({"error": "Trip not found"}), 404
+        if trip[0] != user["user_id"]:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        # Build a fallback label from trip destinations
+        trip_name = trip[1] or "Trip"
+        trip_destinations = trip[2]
+        if isinstance(trip_destinations, str):
+            try:
+                trip_destinations = json_lib.loads(trip_destinations) if trip_destinations else []
+            except Exception:
+                trip_destinations = []
+        fallback_label = trip_name
+        if trip_destinations and isinstance(trip_destinations, list):
+            dest_names = [d.get("name") or d.get("city") or "" for d in trip_destinations if isinstance(d, dict)]
+            dest_names = [n for n in dest_names if n]
+            if dest_names:
+                fallback_label = ", ".join(dest_names[:3])
+
+        # Get all photos for this trip with any available location info
+        cur.execute(
+            """SELECT id, location_name, site_name, geocoded_location,
+                      filename, file_path, media_type, 
+                      latitude, longitude, taken_at, uploaded_at,
+                      activity_notes
+               FROM photos 
+               WHERE trip_id = %s 
+               ORDER BY COALESCE(taken_at, uploaded_at) ASC""",
+            (trip_id,)
+        )
+
+        groups = {}  # key -> { "city": ..., "country": ..., "photos": [...], "earliest_ts": datetime }
+        unassigned_photos = []
+
+        rows = cur.fetchall()
+        for row in rows:
+            # taken_at (index 9) or uploaded_at (index 10)
+            photo_ts = row[9] or row[10]
+            photo_data = {
+                "id": row[0],
+                "location_name": row[1],
+                "site_name": row[2] or "Unassigned",
+                "geocoded_location": row[3],
+                "filename": row[4],
+                "url": f"/api/photos{row[5]}",
+                "media_type": row[6] if len(row) > 6 else "image",
+                "uploaded_at": row[10].isoformat() if len(row) > 10 and row[10] else None,
+                "activity_notes": row[11] if len(row) > 11 else None
+            }
+
+            # Add geotagging fields if present
+            if len(row) > 7 and row[7] is not None:  # latitude
+                photo_data["latitude"] = float(row[7])
+            if len(row) > 8 and row[8] is not None:  # longitude
+                photo_data["longitude"] = float(row[8])
+            if len(row) > 9 and row[9]:  # taken_at
+                photo_data["taken_at"] = row[9].isoformat() if hasattr(row[9], 'isoformat') else str(row[9])
+
+            # Derive detectedCity / detectedCountry from geocoded_location string
+            detected_city = None
+            detected_country = None
+            if row[3]:
+                parts = [p.strip() for p in row[3].split(",") if p.strip()]
+                if len(parts) == 1:
+                    detected_city = parts[0]
+                elif len(parts) >= 2:
+                    detected_city = parts[0]
+                    detected_country = parts[-1]
+
+            photo_data["detectedCity"] = detected_city
+            photo_data["detectedCountry"] = detected_country
+
+            if detected_city or detected_country:
+                # Use city+country as the grouping key
+                key = f"{detected_city or ''}|{detected_country or ''}"
+                if key not in groups:
+                    groups[key] = {
+                        "city": detected_city,
+                        "country": detected_country,
+                        "photos": [],
+                        "earliest_ts": photo_ts
+                    }
+                groups[key]["photos"].append(photo_data)
+                # Update earliest timestamp for the group
+                if photo_ts and groups[key]["earliest_ts"]:
+                    if photo_ts < groups[key]["earliest_ts"]:
+                        groups[key]["earliest_ts"] = photo_ts
+            else:
+                # No detected city/country -> Other trip memories group
+                unassigned_photos.append((photo_ts, photo_data))
+
+        # Build timeline response: groups sorted by earliest photo timestamp
+        sorted_groups = sorted(
+            groups.values(),
+            key=lambda g: g["earliest_ts"] or (g["photos"][0].get("uploaded_at") if g["photos"] else None)
+        )
+
+        timeline = []
+        for g in sorted_groups:
+            if g["city"] and g["country"]:
+                title = f"{g['city']}, {g['country']}"
+            else:
+                title = g["city"] or g["country"] or "Unknown"
+
+            timeline.append({
+                "site_name": title,
+                "detected_city": g["city"],
+                "detected_country": g["country"],
+                "photos": sorted(
+                    g["photos"],
+                    key=lambda p: p.get("taken_at") or p.get("uploaded_at") or ""
+                )
+            })
+
+        # Add unassigned photos at the end, sorted chronologically
+        if unassigned_photos:
+            unassigned_photos_sorted = [
+                p for _, p in sorted(
+                    unassigned_photos,
+                    key=lambda t: t[0] or t[1].get("uploaded_at") or ""
+                )
+            ]
+            timeline.append({
+                "site_name": fallback_label,
+                "detected_city": None,
+                "detected_country": None,
+                "photos": unassigned_photos_sorted
+            })
+
+        return jsonify({
+            "trip_id": trip_id,
+            "timeline": timeline,
+            "total_photos": sum(len(site["photos"]) for site in timeline),
+            "total_sites": len(timeline)
+        }), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
     finally:
         cur.close()

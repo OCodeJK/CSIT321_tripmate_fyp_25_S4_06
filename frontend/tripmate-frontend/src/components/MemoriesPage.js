@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import API_URL from "../config";
 
 export default function MemoriesPage({ token, user, onBack }) {
   const [photosByTrip, setPhotosByTrip] = useState([]);
@@ -20,7 +21,7 @@ export default function MemoriesPage({ token, user, onBack }) {
   const fetchAllPhotos = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://127.0.0.1:5000/api/photos/user/all', {
+      const response = await axios.get(`${API_URL}/api/photos/user/all`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -44,7 +45,7 @@ export default function MemoriesPage({ token, user, onBack }) {
 
   const handleDeletePhoto = async (photoId) => {
     try {
-      await axios.delete(`http://127.0.0.1:5000/api/photos/${photoId}`, {
+      await axios.delete(`${API_URL}/api/photos/${photoId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -366,7 +367,7 @@ export default function MemoriesPage({ token, user, onBack }) {
               >
                 {photo.media_type === 'video' ? (
                   <video
-                    src={`http://127.0.0.1:5000${photo.url}`}
+                    src={`${API_URL}${photo.url}`}
                     style={{
                       width: '100%',
                       height: '100%',
@@ -375,7 +376,7 @@ export default function MemoriesPage({ token, user, onBack }) {
                   />
                 ) : (
                   <img
-                    src={`http://127.0.0.1:5000${photo.url}`}
+                    src={`${API_URL}${photo.url}`}
                     alt={photo.filename}
                     style={{
                       width: '100%',
@@ -503,7 +504,7 @@ export default function MemoriesPage({ token, user, onBack }) {
                     >
                       {photo.media_type === 'video' ? (
                         <video
-                          src={`http://127.0.0.1:5000${photo.url}`}
+                          src={`${API_URL}${photo.url}`}
                           style={{
                             width: '100%',
                             height: '100%',
@@ -512,7 +513,7 @@ export default function MemoriesPage({ token, user, onBack }) {
                         />
                       ) : (
                         <img
-                          src={`http://127.0.0.1:5000${photo.url}`}
+                          src={`${API_URL}${photo.url}`}
                           alt={photo.filename}
                           style={{
                             width: '100%',
@@ -601,7 +602,7 @@ export default function MemoriesPage({ token, user, onBack }) {
           >
             {selectedPhoto.media_type === 'video' ? (
               <video
-                src={`http://127.0.0.1:5000${selectedPhoto.url}`}
+                src={`${API_URL}${selectedPhoto.url}`}
                 controls
                 autoPlay
                 style={{
@@ -612,7 +613,7 @@ export default function MemoriesPage({ token, user, onBack }) {
               />
             ) : (
               <img
-                src={`http://127.0.0.1:5000${selectedPhoto.url}`}
+                src={`${API_URL}${selectedPhoto.url}`}
                 alt={selectedPhoto.filename}
                 style={{
                   maxWidth: '100%',

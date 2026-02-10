@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import tripmateLogo from "../assets/logo/tripmate_logo.png";
+import API_URL from "../config";
 
 export default function ReviewPage({ token, user }) {
   const [rating, setRating] = useState(0);
@@ -59,7 +60,7 @@ export default function ReviewPage({ token, user }) {
 
   const loadMyReview = async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:5000/api/website-reviews/my", {
+      const res = await axios.get(`${API_URL}/api/website-reviews/my`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.review) {
@@ -97,7 +98,7 @@ export default function ReviewPage({ token, user }) {
 
     setLoading(true);
     try {
-      await axios.post("http://127.0.0.1:5000/api/website-reviews/", {
+      await axios.post(`${API_URL}/api/website-reviews/`, {
         rating,
         comment: comment.trim(),
         low_rating_feedback: rating <= 2 ? lowRatingFeedback : []

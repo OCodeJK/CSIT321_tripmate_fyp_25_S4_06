@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
+import API_URL from "../config";
 
 export default function TripList({ token, onCreateNew }) {
   const [trips, setTrips] = useState([]);
@@ -13,7 +14,7 @@ export default function TripList({ token, onCreateNew }) {
 
   const loadTrips = useCallback(async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:5000/api/trips/", {
+      const res = await axios.get(`${API_URL}/api/trips/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const tripsData = res.data.trips;
@@ -23,7 +24,7 @@ export default function TripList({ token, onCreateNew }) {
       const photosMap = {};
       const photoPromises = tripsData.map(async (trip) => {
         try {
-          const photoRes = await axios.get(`http://127.0.0.1:5000/api/photos/trip/${trip.id}`, {
+          const photoRes = await axios.get(`${API_URL}/api/photos/trip/${trip.id}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (photoRes.data.photos && photoRes.data.photos.length > 0) {
@@ -84,7 +85,7 @@ export default function TripList({ token, onCreateNew }) {
 
     try {
       const res = await axios.get(
-        `http://127.0.0.1:5000/api/trips/search?q=${encodeURIComponent(searchQuery)}`,
+        `${API_URL}/api/trips/search?q=${encodeURIComponent(searchQuery)}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setTrips(res.data.trips);
@@ -98,7 +99,7 @@ export default function TripList({ token, onCreateNew }) {
       return;
     }
     try {
-      await axios.delete(`http://127.0.0.1:5000/api/trips/${tripId}`, {
+      await axios.delete(`${API_URL}/api/trips/${tripId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       loadTrips();
@@ -123,7 +124,7 @@ export default function TripList({ token, onCreateNew }) {
         budget: trip.budget
       };
 
-      await axios.post("http://127.0.0.1:5000/api/trips/", tripData, {
+      await axios.post(`${API_URL}/api/trips/`, tripData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -136,14 +137,14 @@ export default function TripList({ token, onCreateNew }) {
         const errorMsg = err.response.data?.message || err.response.data?.error || "Monthly trip limit reached. Free plan allows up to 2 trips per month. Upgrade to Premium for unlimited trips.";
         alert(errorMsg);
       } else {
-        alert("Failed to duplicate trip. Please try again.");
+      alert("Failed to duplicate trip. Please try again.");
       }
     }
   };
 
   const startTripAgain = async (tripId) => {
     try {
-      await axios.put(`http://127.0.0.1:5000/api/trips/${tripId}`, {
+      await axios.put(`${API_URL}/api/trips/${tripId}`, {
         end_date: null
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -621,7 +622,7 @@ function TripCard({ trip, firstPhoto, onCreateNew, openMenuId, setOpenMenuId, me
              firstPhoto.url?.includes('.mp4') || 
              firstPhoto.url?.includes('.mov') ? (
               <video
-                src={`http://127.0.0.1:5000${firstPhoto.url}`}
+                src={`${API_URL}${firstPhoto.url}`}
                 style={{
                   width: "100%",
                   height: "100%",
@@ -634,7 +635,7 @@ function TripCard({ trip, firstPhoto, onCreateNew, openMenuId, setOpenMenuId, me
               />
             ) : (
               <img
-                src={`http://127.0.0.1:5000${firstPhoto.url}`}
+                src={`${API_URL}${firstPhoto.url}`}
                 alt={trip.name}
                 style={{
                   width: "100%",
@@ -654,22 +655,22 @@ function TripCard({ trip, firstPhoto, onCreateNew, openMenuId, setOpenMenuId, me
             }} />
           </>
         ) : (
-          <div style={{
-            position: "absolute",
-            inset: 0,
-            background: "linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
-            transform: imageHover ? "scale(1.1)" : "scale(1)"
-          }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "rgba(255, 255, 255, 0.9)" }}>
-              <path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/>
-              <path d="M15 5.764v15"/>
-              <path d="M9 3.236v15"/>
-            </svg>
-          </div>
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          background: "linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+          transform: imageHover ? "scale(1.1)" : "scale(1)"
+        }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "rgba(255, 255, 255, 0.9)" }}>
+            <path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/>
+            <path d="M15 5.764v15"/>
+            <path d="M9 3.236v15"/>
+          </svg>
+        </div>
         )}
         {/* Status Badge */}
         {trip.end_date ? (

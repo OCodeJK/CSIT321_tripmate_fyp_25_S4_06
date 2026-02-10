@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import API_URL from "../config";
 
 export default function AccountSettings({ token, user, onBack, onLogout }) {
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
@@ -49,7 +50,7 @@ export default function AccountSettings({ token, user, onBack, onLogout }) {
     
     try {
       await axios.put(
-        "http://127.0.0.1:5000/api/account/",
+        `${API_URL}/api/account/`,
         { notifications_enabled: newValue },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -77,7 +78,7 @@ export default function AccountSettings({ token, user, onBack, onLogout }) {
     setError("");
     
     try {
-      await axios.delete("http://127.0.0.1:5000/api/account/", {
+      await axios.delete(`${API_URL}/api/account/`, {
         data: { confirmation: deleteConfirmation },
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -359,85 +360,6 @@ export default function AccountSettings({ token, user, onBack, onLogout }) {
                   }}
                 />
               </div>
-            </div>
-
-            {/* Data Management Card */}
-            <div style={{
-              background: "rgba(255, 255, 255, 0.7)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              borderRadius: "24px",
-              padding: "clamp(28px, 4vw, 36px)",
-              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5) inset, 0 8px 32px rgba(0, 0, 0, 0.04)",
-              border: "1px solid rgba(255, 255, 255, 0.3)",
-              opacity: visible ? 1 : 0,
-              transform: visible ? "translateY(0)" : "translateY(20px)",
-              transition: "opacity 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s, transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s",
-              animation: visible ? "fadeInUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s both" : "none"
-            }}>
-              <div style={{
-                width: "48px",
-                height: "48px",
-                background: "linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)",
-                borderRadius: "12px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: "clamp(20px, 3vw, 24px)"
-              }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#6366f1" }}>
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" x2="12" y1="15" y2="3"/>
-                </svg>
-              </div>
-              <h2 style={{
-                fontSize: "clamp(20px, 3vw, 24px)",
-                fontWeight: "700",
-                color: "#1e293b",
-                marginBottom: "clamp(20px, 3vw, 24px)",
-                letterSpacing: "-0.01em"
-              }}>
-                Data Management
-              </h2>
-              <MagneticButton
-                onClick={() => alert("Export feature coming soon!")}
-                mousePosition={mousePosition}
-                style={{
-                  width: "100%",
-                  padding: "clamp(14px, 2.5vw, 18px)",
-                  background: "transparent",
-                  color: "#6366f1",
-                  border: "2px solid #6366f1",
-                  borderRadius: "12px",
-                  cursor: "pointer",
-                  fontSize: "clamp(15px, 2vw, 16px)",
-                  fontWeight: "600",
-                  textAlign: "left",
-                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                  marginBottom: "clamp(12px, 2vw, 16px)"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(99, 102, 241, 0.1)";
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = "0 8px 24px rgba(99, 102, 241, 0.2)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              >
-                Export My Data
-              </MagneticButton>
-              <p style={{
-                fontSize: "clamp(13px, 2vw, 14px)",
-                color: "#94a3b8",
-                margin: 0,
-                lineHeight: "1.5"
-              }}>
-                Download all your trips, photos, and account data
-              </p>
             </div>
           </div>
 

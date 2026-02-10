@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { useFreeQuota } from "../hooks/useFreeQuota";
+import API_URL from "../config";
 
 export default function AIChat({ locations, photos, token, user, tripId }) {
   // Extract destination from locations (first is origin, rest are destinations)
@@ -54,7 +55,7 @@ export default function AIChat({ locations, photos, token, user, tripId }) {
   useEffect(() => {
     if (!user?.is_premium && tripId && isInitialized) {
       syncFromServer(async () => {
-        const res = await axios.get("http://127.0.0.1:5000/api/ai/chat/usage", {
+        const res = await axios.get(`${API_URL}/api/ai/chat/usage`, {
           params: { trip_id: tripId },
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -102,7 +103,7 @@ export default function AIChat({ locations, photos, token, user, tripId }) {
         content: msg.content
       }));
       
-      const res = await axios.post("http://127.0.0.1:5000/api/ai/chat", {
+      const res = await axios.post(`${API_URL}/api/ai/chat`, {
         message: messageToSend,
         locations: locations,
         photos: photos,
@@ -124,7 +125,7 @@ export default function AIChat({ locations, photos, token, user, tripId }) {
           // This is more reliable than trusting the response value which might be 0 if there was an error
           setTimeout(async () => {
             try {
-              const usageRes = await axios.get("http://127.0.0.1:5000/api/ai/chat/usage", {
+              const usageRes = await axios.get(`${API_URL}/api/ai/chat/usage`, {
                 params: { trip_id: tripId },
                 headers: { Authorization: `Bearer ${token}` }
               });
@@ -235,7 +236,7 @@ export default function AIChat({ locations, photos, token, user, tripId }) {
             Ask About Your Trip
           </h3>
         </div>
-        {!user?.is_premium && tripId && (
+        {!user?.is_premium && tripId != null && (
           <span style={{ 
             fontSize: "12px", 
             color: "#f59e0b", 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import API_URL from "../config";
 
 export default function EditProfile({ token, user, onBack, onUpdateUser }) {
   const [formData, setFormData] = useState({
@@ -18,7 +19,11 @@ export default function EditProfile({ token, user, onBack, onUpdateUser }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    loadUserData();
+    if (token) {
+      loadUserData();
+    } else {
+      setError("Authentication required. Please log in again.");
+    }
   }, [token]);
 
   // Scroll reveal animation
@@ -51,22 +56,39 @@ export default function EditProfile({ token, user, onBack, onUpdateUser }) {
   }, []);
 
   const loadUserData = async () => {
+    if (!token) {
+      setError("Authentication required. Please log in again.");
+      return;
+    }
+
     try {
-      const res = await axios.get("http://127.0.0.1:5000/api/account/", {
+      const res = await axios.get(`${API_URL}/api/account/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const userData = res.data.user;
-      setFormData({
-        username: userData.username || "",
-        email: userData.email || "",
-        full_name: userData.full_name || "",
-        current_password: "",
-        new_password: "",
-        confirm_password: ""
-      });
+      
+      if (res.data && res.data.user) {
+        const userData = res.data.user;
+        setFormData({
+          username: userData.username || "",
+          email: userData.email || "",
+          full_name: userData.full_name || "",
+          current_password: "",
+          new_password: "",
+          confirm_password: ""
+        });
+        setError(""); // Clear any previous errors
+      } else {
+        setError("Invalid response from server");
+      }
     } catch (err) {
       console.error("Error loading user data:", err);
-      setError("Failed to load profile data");
+      const errorMessage = err.response?.data?.error || err.message || "Failed to load profile data";
+      setError(errorMessage);
+      
+      // If unauthorized, suggest re-login
+      if (err.response?.status === 401) {
+        setError("Session expired. Please log in again.");
+      }
     }
   };
 
@@ -115,7 +137,7 @@ export default function EditProfile({ token, user, onBack, onUpdateUser }) {
         updateData.current_password = formData.current_password;
       }
 
-      await axios.put("http://127.0.0.1:5000/api/account/", updateData, {
+      await axios.put(`${API_URL}/api/account/`, updateData, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
