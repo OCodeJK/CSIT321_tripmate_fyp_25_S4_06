@@ -8,18 +8,25 @@ Built with React, Python (Flask), MySQL, Google Maps API, and AI integration.
 
 ## Features
 
-✅ **Multiple Destinations with Optimized Route Planning** - Enter multiple destinations and get the most efficient route  
-✅ **Interactive Google Maps Visualization** - See your entire trip route on an interactive map  
+✅ **Route Optimization** - Enter multiple destinations and get the most efficient route using advanced algorithms  
+✅ **Interactive Google Maps** - View your entire trip route on an interactive map with markers and directions  
 ✅ **Smart Routing** - Automatically chooses between driving and flying based on distance  
-✅ **Trip Management** - Save, load, and manage multiple trips  
-✅ **Photo Upload & Association** - Upload photos and associate them with specific locations  
-✅ **Automated Slideshow** - View a beautiful slideshow of your documented journey  
-✅ **AI Chat Assistant** - Ask questions about visited sites and get AI-powered information (Premium)  
+✅ **Trip Management** - Save, load, and manage multiple trips from your dashboard  
+✅ **Photo & Video Upload** - Upload photos/videos and organize them by location (100 MB free, 1 GB premium)  
+✅ **Trip Timeline** - Narrative-driven, interactive timeline with city and activity tagging per photo  
+✅ **Automated Slideshow** - Beautiful slideshow of your trip photos with auto-play and controls  
+✅ **End-of-Trip Slideshow** - Automatic slideshow when you finish a trip, with export option  
+✅ **AI Chat Assistant** - Ask questions about your destinations and get AI-powered insights (5 free per trip, unlimited for premium)  
 ✅ **Export Trip Recap** - Export your trip as an MP4 video with photos and route information (Premium)  
-✅ **Budget Tracking** - Track expenses and manage trip budgets  
+✅ **Budget Tracking** - Set budgets, track expenses, and get alerts when exceeding spending limits  
+✅ **Weather & Traffic Info** - Real-time weather forecasts and traffic conditions for your route  
+✅ **Memories Page** - Browse all your trip photos in a grid or by-trip view, with search and media type filters  
 ✅ **Reviews & Ratings** - Rate and review destinations  
-✅ **User Authentication** - Secure user accounts with JWT authentication  
-✅ **Premium Features** - AI chat and video export for premium users  
+✅ **Notifications** - In-app notification panel for updates  
+✅ **User Authentication** - Secure accounts with JWT authentication  
+✅ **Premium Subscription** - Unlock unlimited AI chat, video export, and 1 GB upload limits (S$9.99/month)  
+✅ **Admin Panel** - Manage users, view stats, and administer the platform  
+✅ **Help & Support** - Built-in FAQ and support page  
 
 ---
 
@@ -514,6 +521,3 @@ CSIT321 TripMate FYP Team - S4_06
 
 ---
 
-## License
-
-[Your License Here]

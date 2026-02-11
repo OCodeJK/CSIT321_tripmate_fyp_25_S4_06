@@ -17,7 +17,14 @@ app = Flask(__name__)
 # Multiple origins can be comma-separated.
 _allowed_origins = os.getenv("FRONTEND_URL", "http://localhost:3000,http://127.0.0.1:3000")
 allowed_origins = [o.strip() for o in _allowed_origins.split(",") if o.strip()]
-CORS(app, origins=allowed_origins, supports_credentials=True)
+CORS(
+    app,
+    origins=allowed_origins,
+    supports_credentials=True,
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_headers=["Content-Type", "Authorization"],
+    expose_headers=["Content-Type", "Content-Disposition", "Content-Length"],
+)
 
 # Initialize AI service on startup
 try:
@@ -373,6 +380,20 @@ def health_check():
         return jsonify({"status": "healthy", "database": "connected"}), 200
     except Exception as e:
         return jsonify({"status": "unhealthy", "database": str(e)}), 503
+
+
+@app.route("/__routes", methods=["GET"])
+def list_routes():
+    """Temporary debug endpoint — lists every registered route."""
+    routes = []
+    for rule in app.url_map.iter_rules():
+        routes.append({
+            "endpoint": rule.endpoint,
+            "methods": sorted(rule.methods - {"HEAD", "OPTIONS"}),
+            "path": rule.rule,
+        })
+    routes.sort(key=lambda r: r["path"])
+    return jsonify(routes), 200
 
 
 if __name__ == "__main__":
